@@ -268,33 +268,28 @@ func TestCNIPluginVersion(t *testing.T) {
 	}
 }
 
+func getCNIVersionString(t *testing.T) string {
+	versionStr, err := ioutil.ReadFile(CNIVersionFilePath)
+	assert.NoError(t, err, "Error reading the CNI plugin version file")
+	return strings.TrimSpace(string(versionStr))
+}
+
 func TestCNIPluginVersionNumber(t *testing.T) {
-	var expected_version = "2018.08.0"
-	dat, err := ioutil.ReadFile("../../amazon-ecs-cni-plugins/VERSION")
-	//check(err)
-	fmt.Print(string(dat))
-	fmt.Print(err)
-
-	assert.Equal(t, expected_version, strings.TrimSpace(string(dat)))
-
+	var versionStr = getCNIVersionString(t)
+	assert.Equal(t, currentCNIVersion, versionStr)
 }
 
 func TestCNIPluginVersionUpgrade(t *testing.T) {
-	var last_git_hash = "a134a973585b560439ed25ec3857e4789bfeb89f"
-	var last_version = "2018.08.0"
-
-	current_version, err := ioutil.ReadFile("../../amazon-ecs-cni-plugins/VERSION")
+	var versionStr = getCNIVersionString(t)
 
 	cmd := exec.Command("git", "submodule")
 	versionInfo, err := cmd.Output()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(strings.Split(string(versionInfo), " ")[1])
-	//fmt.Println(   .)
+	versionInfoStr := string((versionInfo))
+	assert.NoError(t, err, "Error running the command: git submodule")
+
 	// If a new commit is added, version should be upgraded
-	if (string(last_git_hash) != strings.Split(string(versionInfo), " ")[1]) {
-		assert.NotEqual(t, string(last_version), strings.TrimSpace(string(current_version)))
+	if (string(CNIGitHash) != strings.Split(versionInfoStr, " ")[1]) {
+		assert.NotEqual(t, string(currentCNIVersion), versionStr)
 	}
 
 }
