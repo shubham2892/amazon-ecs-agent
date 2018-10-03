@@ -19,6 +19,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -257,5 +260,28 @@ func TestCNIPluginVersion(t *testing.T) {
 		t.Run(fmt.Sprintf("version string %s", tc.str), func(t *testing.T) {
 			assert.Equal(t, tc.str, tc.version.str())
 		})
+	}
+}
+
+func getCNIVersionString(t *testing.T) string {
+	versionStr, err := ioutil.ReadFile(CNIVersionFilePath)
+	assert.NoError(t, err, "Error reading the CNI plugin version file")
+	return strings.TrimSpace(string(versionStr))
+}
+
+func TestCNIPluginVersionNumber(t *testing.T) {
+	var versionStr = getCNIVersionString(t)
+	assert.Equal(t, currentCNIVersion, versionStr)
+}
+
+func TestCNIPluginVersionUpgrade(t *testing.T) {
+	var versionStr = getCNIVersionString(t)
+	cmd := exec.Command("git", "submodule")
+	versionInfo, err := cmd.Output()
+	versionInfoStr := string((versionInfo))
+	assert.NoError(t, err, "Error running the command: git submodule")
+	// If a new commit is added, version should be upgraded
+	if (string(CNIGitHash) != strings.Split(versionInfoStr, " ")[1]) {
+		assert.NotEqual(t, string(currentCNIVersion), versionStr)
 	}
 }
