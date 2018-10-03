@@ -19,6 +19,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -72,9 +75,14 @@ func TestSetupNSTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	ecscniClient := NewClient(&Config{})
+	ecscniClient := NewClient(&Config{PluginsPath: "/amazon-ecs-cni-plugins"})
 	libcniClient := mock_libcni.NewMockCNI(ctrl)
 	ecscniClient.(*cniClient).libcni = libcniClient
+
+	ver, errr := ecscniClient.Version("eni")
+
+	fmt.Println(ver)
+	fmt.Println(errr)
 
 	gomock.InOrder(
 		// ENI plugin was called first
@@ -258,4 +266,30 @@ func TestCNIPluginVersion(t *testing.T) {
 			assert.Equal(t, tc.str, tc.version.str())
 		})
 	}
+}
+
+func getCNIVersionString(t *testing.T) string {
+	versionStr, err := ioutil.ReadFile(CNIVersionFilePath)
+	assert.NoError(t, err, "Error reading the CNI plugin version file")
+	return strings.TrimSpace(string(versionStr))
+}
+
+func TestCNIPluginVersionNumber(t *testing.T) {
+	var versionStr = getCNIVersionString(t)
+	assert.Equal(t, currentCNIVersion, versionStr)
+}
+
+func TestCNIPluginVersionUpgrade(t *testing.T) {
+	var versionStr = getCNIVersionString(t)
+
+	cmd := exec.Command("git", "submodule")
+	versionInfo, err := cmd.Output()
+	versionInfoStr := string((versionInfo))
+	assert.NoError(t, err, "Error running the command: git submodule")
+
+	// If a new commit is added, version should be upgraded
+	if (string(CNIGitHash) != strings.Split(versionInfoStr, " ")[1]) {
+		assert.NotEqual(t, string(currentCNIVersion), versionStr)
+	}
+
 }
