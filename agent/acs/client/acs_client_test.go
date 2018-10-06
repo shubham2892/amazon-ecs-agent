@@ -135,6 +135,7 @@ func TestWriteAckRequest(t *testing.T) {
 	assert.Equal(t, "AckRequest", msg.Type)
 }
 
+// Sample
 func TestPayloadHandlerCalled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
