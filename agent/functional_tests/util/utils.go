@@ -16,6 +16,7 @@
 package util
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -29,8 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"context"
-
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient/sdkclientfactory"
 	"github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	"github.com/aws/amazon-ecs-agent/agent/handlers/v1"
@@ -38,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -46,6 +46,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -102,6 +103,16 @@ func GetTaskDefinitionWithOverrides(name string, overrides map[string]string) (s
 		return "", err
 	}
 	return fmt.Sprintf("%s:%d", *registered.TaskDefinition.Family, *registered.TaskDefinition.Revision), nil
+}
+
+func IsCNPartition() bool {
+	partitions := endpoints.DefaultPartitions()
+	p, _ := endpoints.PartitionForRegion(partitions, *ECS.Config.Region)
+
+	if p.ID() == endpoints.AwsCnPartition().ID() {
+		return true
+	}
+	return false
 }
 
 type TestAgent struct {
@@ -602,19 +613,14 @@ func (task *TestTask) GetAttachmentInfo() ([]*ecs.KeyValuePair, error) {
 func RequireDockerVersion(t *testing.T, selector string) {
 	ctx := context.TODO()
 	dockerClient, err := docker.NewClientWithOpts(docker.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
-	if err != nil {
-		t.Fatalf("Could not get docker client to check version: %v", err)
-	}
-	version, err := dockerClient.ServerVersion(ctx)
-	if err != nil {
-		t.Fatalf("Could not get docker version: %v", err)
-	}
-	dockerVersion := version.Version
+	require.NoError(t, err, "Could not get docker client to check version")
 
+	version, err := dockerClient.ServerVersion(ctx)
+	require.NoError(t, err, "Could not get docker version")
+
+	dockerVersion := version.Version
 	match, err := utils.Version(dockerVersion).Matches(selector)
-	if err != nil {
-		t.Fatalf("Could not check docker version to match required: %v", err)
-	}
+	require.NoError(t, err, "Could not check docker version to match required")
 
 	if !match {
 		t.Skipf("Skipping test; requires %v, but version is %v", selector, dockerVersion)
@@ -623,9 +629,7 @@ func RequireDockerVersion(t *testing.T, selector string) {
 
 func RequireMinimumMemory(t *testing.T, minimumMemoryInMegaBytes int) {
 	memInfo, err := system.ReadMemInfo()
-	if err != nil {
-		t.Fatalf("Could not check system memory info before checking minimum memory requirement: %v", err)
-	}
+	require.NoError(t, err, "Could not check system memory info before checking minimum memory requirement")
 
 	totalMemory := int(memInfo.MemTotal / bytePerMegabyte)
 	if totalMemory < minimumMemoryInMegaBytes {
@@ -636,13 +640,11 @@ func RequireMinimumMemory(t *testing.T, minimumMemoryInMegaBytes int) {
 func RequireDockerAPIVersion(t *testing.T, selector string) {
 	ctx := context.TODO()
 	dockerClient, err := docker.NewClientWithOpts(docker.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
-	if err != nil {
-		t.Fatalf("Could not get docker client to check version: %v", err)
-	}
+	require.NoError(t, err, "Could not get docker client to check version")
+
 	version, err := dockerClient.ServerVersion(ctx)
-	if err != nil {
-		t.Fatalf("Could not get docker version: %v", err)
-	}
+	require.NoError(t, err, "Could not get docker version")
+
 	apiVersion := version.APIVersion
 	// adding zero patch to use semver comparator
 	// TODO: Implement non-semver comparator

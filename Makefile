@@ -91,14 +91,14 @@ misc/certs/ca-certificates.crt:
 
 ifeq (${BUILD_PLATFORM},aarch64)
 test::
-	. ./scripts/shared_env && go test -tags unit -timeout=25s -v -cover $(shell go list ./agent/... | grep -v /vendor/)
+	. ./scripts/shared_env && go test -tags unit -timeout=30s -v -cover $(shell go list ./agent/... | grep -v /vendor/)
 else
 test::
-	. ./scripts/shared_env && go test -race -tags unit -timeout=25s -v -cover $(shell go list ./agent/... | grep -v /vendor/)
+	. ./scripts/shared_env && go test -race -tags unit -timeout=30s -v -cover $(shell go list ./agent/... | grep -v /vendor/)
 endif
 
 test-silent:
-	. ./scripts/shared_env && go test -timeout=25s -cover $(shell go list ./agent/... | grep -v /vendor/)
+	. ./scripts/shared_env && go test -timeout=30s -cover $(shell go list ./agent/... | grep -v /vendor/)
 
 benchmark-test:
 	. ./scripts/shared_env && go test -run=XX -bench=. $(shell go list ./agent/... | grep -v /vendor/)
@@ -328,15 +328,23 @@ telemetry-test-image:
 container-health-check-image:
 	$(MAKE) -C misc/container-health $(MFLAGS)
 
+# all .go files in the agent, excluding vendor/, model/ and testutils/ directories, and all *_test.go and *_mocks.go files
+GOFILES:=$(shell go list -f '{{$$p := .}}{{range $$f := .GoFiles}}{{$$p.Dir}}/{{$$f}} {{end}}' ./agent/... \
+		| grep -v /vendor/ | grep -v /testutils/ | grep -v _test\.go$ | grep -v _mocks\.go$ | grep -v /model)
 .PHONY: gocyclo
 gocyclo:
-	# Run gocyclo over all .go files in the agent, excluding vendor/, model/ and testutils/ directories, and all *_test.go and *_mocks.go files
-	gocyclo -over 15 $(shell go list -f '{{$$p := .}}{{range $$f := .GoFiles}}{{$$p.Dir}}/{{$$f}} {{end}}' ./agent/... \
-		| grep -v /vendor/ | grep -v /testutils/ | grep -v _test\.go$ | grep -v _mocks\.go$ | grep -v /model)
+	# Run gocyclo over all .go files
+	gocyclo -over 15 ${GOFILES}
+
+.PHONY: fmtcheck
+fmtcheck:
+	$(eval DIFFS:=$(shell gofmt -l ${GOFILES}))
+	@if [ -n "$(DIFFS)" ]; then echo "Files incorrectly formatted. Fix formatting by running gofmt:"; echo "$(DIFFS)"; exit 1; fi
+	
 
 #TODO, create and add go vet target
 .PHONY: static-check
-static-check: gocyclo
+static-check: gocyclo fmtcheck
 
 .get-deps-stamp:
 	go get golang.org/x/tools/cmd/cover

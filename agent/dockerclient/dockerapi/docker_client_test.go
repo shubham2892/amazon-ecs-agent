@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"io/ioutil"
 	"reflect"
 	"strconv"
 	"strings"
@@ -58,6 +59,11 @@ import (
 // upon the expiration of the timeout duration.
 // TODO Remove mock go-dockerclient calls and fields after migration is complete.
 const xContainerShortTimeout = 1 * time.Millisecond
+
+// xImgesShortTimeout is a short duration intended to be used by the
+// docker client APIs that test if the underlying context gets canceled
+// upon the expiration of the timeout duration.
+const xImageShortTimeout = 1 * time.Millisecond
 
 func defaultTestConfig() *config.Config {
 	cfg, _ := config.NewConfig(ec2.NewBlackholeEC2MetadataClient())
@@ -731,7 +737,7 @@ func TestContainerEventsStreamError(t *testing.T) {
 
 	eventsChan := make(chan events.Message, dockerEventBufferSize)
 	errChan := make(chan error)
-	mockDockerSDK.EXPECT().Events(gomock.Any(), gomock.Any()).Return(eventsChan, errChan).Times(2)
+	mockDockerSDK.EXPECT().Events(gomock.Any(), gomock.Any()).Return(eventsChan, errChan).MinTimes(1)
 
 	dockerEvents, err := client.ContainerEvents(context.TODO())
 	require.NoError(t, err, "Could not get container events")
@@ -804,6 +810,42 @@ func TestListContainersTimeout(t *testing.T) {
 	response := client.ListContainers(ctx, true, xContainerShortTimeout)
 	assert.Error(t, response.Error, "Expected error for pull timeout")
 	assert.Equal(t, "DockerTimeoutError", response.Error.(apierrors.NamedError).ErrorName())
+	wait.Done()
+}
+
+func TestListImages(t *testing.T) {
+	mockDocker, client, _, _, _, done := dockerClientSetup(t)
+	defer done()
+
+	images := []types.ImageSummary{{ID: "id"}}
+	mockDocker.EXPECT().ImageList(gomock.Any(), gomock.Any()).Return(images, nil)
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	response := client.ListImages(ctx, dockerclient.ListImagesTimeout)
+	assert.NoError(t, response.Error, "Did not expect error")
+
+	imageIDs := response.ImageIDs
+	assert.EqualValues(t, len(imageIDs), 1, "Unexpected number of images in list")
+	assert.EqualValues(t, imageIDs[0], "id", "Unexpected id in list of images")
+}
+
+func TestListImagesTimeout(t *testing.T) {
+	mockDocker, client, _, _, _, done := dockerClientSetup(t)
+	defer done()
+
+	wait := &sync.WaitGroup{}
+	wait.Add(1)
+	mockDocker.EXPECT().ImageList(gomock.Any(), gomock.Any()).Do(func(x, y interface{}) {
+		wait.Wait()
+		// Don't return, verify timeout happens
+	}).MaxTimes(1).Return(nil, errors.New("test error"))
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	response := client.ListImages(ctx, xImageShortTimeout)
+	assert.Error(t, response.Error, "Expected error for pull timeout")
+	assert.Equal(t, response.Error.(apierrors.NamedError).ErrorName(), "DockerTimeoutError", "Wrong error type")
+
 	wait.Done()
 }
 
@@ -1057,7 +1099,9 @@ func TestLoadImageHappyPath(t *testing.T) {
 	mockDockerSDK, client, _, _, _, done := dockerClientSetup(t)
 	defer done()
 
-	mockDockerSDK.EXPECT().ImageLoad(gomock.Any(), gomock.Any(), false).Return(types.ImageLoadResponse{}, nil)
+	mockDockerSDK.EXPECT().ImageLoad(gomock.Any(), gomock.Any(), false).Return(types.ImageLoadResponse{
+		Body: ioutil.NopCloser(strings.NewReader("dummy load message")),
+	}, nil)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
