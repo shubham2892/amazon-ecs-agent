@@ -1,4 +1,4 @@
-// Copyright 2014-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"). You may
 // not use this file except in compliance with the License. A copy of the
@@ -4389,6 +4389,8 @@ type ContainerDefinition struct {
 	//    name (for example, quay.io/assemblyline/ubuntu).
 	Image *string `locationName:"image" type:"string"`
 
+	InferenceDevices []*string `locationName:"inferenceDevices" type:"list"`
+
 	Interactive *bool `locationName:"interactive" type:"boolean"`
 
 	// The link parameter allows containers to communicate with each other without
@@ -4565,6 +4567,8 @@ type ContainerDefinition struct {
 
 	// The private repository authentication credentials to use.
 	RepositoryCredentials *RepositoryCredentials `locationName:"repositoryCredentials" type:"structure"`
+
+	ResourceRequirements []*ResourceRequirement `locationName:"resourceRequirements" type:"list"`
 
 	Secrets []*Secret `locationName:"secrets" type:"list"`
 
@@ -4758,6 +4762,12 @@ func (s *ContainerDefinition) SetImage(v string) *ContainerDefinition {
 	return s
 }
 
+// SetInferenceDevices sets the InferenceDevices field's value.
+func (s *ContainerDefinition) SetInferenceDevices(v []*string) *ContainerDefinition {
+	s.InferenceDevices = v
+	return s
+}
+
 // SetInteractive sets the Interactive field's value.
 func (s *ContainerDefinition) SetInteractive(v bool) *ContainerDefinition {
 	s.Interactive = &v
@@ -4833,6 +4843,12 @@ func (s *ContainerDefinition) SetReadonlyRootFilesystem(v bool) *ContainerDefini
 // SetRepositoryCredentials sets the RepositoryCredentials field's value.
 func (s *ContainerDefinition) SetRepositoryCredentials(v *RepositoryCredentials) *ContainerDefinition {
 	s.RepositoryCredentials = v
+	return s
+}
+
+// SetResourceRequirements sets the ResourceRequirements field's value.
+func (s *ContainerDefinition) SetResourceRequirements(v []*ResourceRequirement) *ContainerDefinition {
+	s.ResourceRequirements = v
 	return s
 }
 
@@ -5098,6 +5114,8 @@ type ContainerOverride struct {
 	// The name of the container that receives the override. This parameter is required
 	// if any override is specified.
 	Name *string `locationName:"name" type:"string"`
+
+	ResourceRequirements []*ResourceRequirement `locationName:"resourceRequirements" type:"list"`
 }
 
 // String returns the string representation
@@ -5143,6 +5161,12 @@ func (s *ContainerOverride) SetMemoryReservation(v int64) *ContainerOverride {
 // SetName sets the Name field's value.
 func (s *ContainerOverride) SetName(v string) *ContainerOverride {
 	s.Name = &v
+	return s
+}
+
+// SetResourceRequirements sets the ResourceRequirements field's value.
+func (s *ContainerOverride) SetResourceRequirements(v []*ResourceRequirement) *ContainerOverride {
+	s.ResourceRequirements = v
 	return s
 }
 
@@ -6956,6 +6980,54 @@ func (s *HostVolumeProperties) SetSourcePath(v string) *HostVolumeProperties {
 	return s
 }
 
+type InferenceAccelerator struct {
+	_ struct{} `type:"structure"`
+
+	// DeviceName is a required field
+	DeviceName *string `locationName:"deviceName" type:"string" required:"true"`
+
+	// DeviceType is a required field
+	DeviceType *string `locationName:"deviceType" type:"string" required:"true"`
+}
+
+// String returns the string representation
+func (s InferenceAccelerator) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s InferenceAccelerator) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *InferenceAccelerator) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "InferenceAccelerator"}
+	if s.DeviceName == nil {
+		invalidParams.Add(request.NewErrParamRequired("DeviceName"))
+	}
+	if s.DeviceType == nil {
+		invalidParams.Add(request.NewErrParamRequired("DeviceType"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDeviceName sets the DeviceName field's value.
+func (s *InferenceAccelerator) SetDeviceName(v string) *InferenceAccelerator {
+	s.DeviceName = &v
+	return s
+}
+
+// SetDeviceType sets the DeviceType field's value.
+func (s *InferenceAccelerator) SetDeviceType(v string) *InferenceAccelerator {
+	s.DeviceType = &v
+	return s
+}
+
 // The Linux capabilities for the container that are added to or dropped from
 // the default configuration provided by Docker. For more information on the
 // default capabilities and the non-default available capabilities, see Runtime
@@ -8462,6 +8534,36 @@ func (s *PlacementStrategy) SetType(v string) *PlacementStrategy {
 	return s
 }
 
+type PlatformDevice struct {
+	_ struct{} `type:"structure"`
+
+	Id *string `locationName:"id" type:"string"`
+
+	Type *string `locationName:"type" type:"string" enum:"PlatformDeviceType"`
+}
+
+// String returns the string representation
+func (s PlatformDevice) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s PlatformDevice) GoString() string {
+	return s.String()
+}
+
+// SetId sets the Id field's value.
+func (s *PlatformDevice) SetId(v string) *PlatformDevice {
+	s.Id = &v
+	return s
+}
+
+// SetType sets the Type field's value.
+func (s *PlatformDevice) SetType(v string) *PlatformDevice {
+	s.Type = &v
+	return s
+}
+
 // Port mappings allow containers to access ports on the host container instance
 // to send or receive traffic. Port mappings are specified as part of the container
 // definition.
@@ -8740,6 +8842,8 @@ type RegisterContainerInstanceInput struct {
 	// curl http://169.254.169.254/latest/dynamic/instance-identity/signature/
 	InstanceIdentityDocumentSignature *string `locationName:"instanceIdentityDocumentSignature" type:"string"`
 
+	PlatformDevices []*PlatformDevice `locationName:"platformDevices" type:"list"`
+
 	Tags []*Tag `locationName:"tags" type:"list"`
 
 	// The resources available on the instance.
@@ -8823,6 +8927,12 @@ func (s *RegisterContainerInstanceInput) SetInstanceIdentityDocument(v string) *
 // SetInstanceIdentityDocumentSignature sets the InstanceIdentityDocumentSignature field's value.
 func (s *RegisterContainerInstanceInput) SetInstanceIdentityDocumentSignature(v string) *RegisterContainerInstanceInput {
 	s.InstanceIdentityDocumentSignature = &v
+	return s
+}
+
+// SetPlatformDevices sets the PlatformDevices field's value.
+func (s *RegisterContainerInstanceInput) SetPlatformDevices(v []*PlatformDevice) *RegisterContainerInstanceInput {
+	s.PlatformDevices = v
 	return s
 }
 
@@ -8918,6 +9028,8 @@ type RegisterTaskDefinitionInput struct {
 	//
 	// Family is a required field
 	Family *string `locationName:"family" type:"string" required:"true"`
+
+	InferenceAccelerators []*InferenceAccelerator `locationName:"inferenceAccelerators" type:"list"`
 
 	IpcMode *string `locationName:"ipcMode" type:"string" enum:"IpcMode"`
 
@@ -9037,6 +9149,16 @@ func (s *RegisterTaskDefinitionInput) Validate() error {
 			}
 		}
 	}
+	if s.InferenceAccelerators != nil {
+		for i, v := range s.InferenceAccelerators {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "InferenceAccelerators", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
 	if s.Tags != nil {
 		for i, v := range s.Tags {
 			if v == nil {
@@ -9075,6 +9197,12 @@ func (s *RegisterTaskDefinitionInput) SetExecutionRoleArn(v string) *RegisterTas
 // SetFamily sets the Family field's value.
 func (s *RegisterTaskDefinitionInput) SetFamily(v string) *RegisterTaskDefinitionInput {
 	s.Family = &v
+	return s
+}
+
+// SetInferenceAccelerators sets the InferenceAccelerators field's value.
+func (s *RegisterTaskDefinitionInput) SetInferenceAccelerators(v []*InferenceAccelerator) *RegisterTaskDefinitionInput {
+	s.InferenceAccelerators = v
 	return s
 }
 
@@ -9265,6 +9393,36 @@ func (s *Resource) SetStringSetValue(v []*string) *Resource {
 // SetType sets the Type field's value.
 func (s *Resource) SetType(v string) *Resource {
 	s.Type = &v
+	return s
+}
+
+type ResourceRequirement struct {
+	_ struct{} `type:"structure"`
+
+	Type *string `locationName:"type" type:"string" enum:"ResourceType"`
+
+	Value *string `locationName:"value" type:"string"`
+}
+
+// String returns the string representation
+func (s ResourceRequirement) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ResourceRequirement) GoString() string {
+	return s.String()
+}
+
+// SetType sets the Type field's value.
+func (s *ResourceRequirement) SetType(v string) *ResourceRequirement {
+	s.Type = &v
+	return s
+}
+
+// SetValue sets the Value field's value.
+func (s *ResourceRequirement) SetValue(v string) *ResourceRequirement {
+	s.Value = &v
 	return s
 }
 
@@ -10854,6 +11012,8 @@ type TaskDefinition struct {
 	// The family of your task definition, used as the definition name.
 	Family *string `locationName:"family" type:"string"`
 
+	InferenceAccelerators []*InferenceAccelerator `locationName:"inferenceAccelerators" type:"list"`
+
 	IpcMode *string `locationName:"ipcMode" type:"string" enum:"IpcMode"`
 
 	// The amount (in MiB) of memory used by the task. If using the EC2 launch type,
@@ -10998,6 +11158,12 @@ func (s *TaskDefinition) SetExecutionRoleArn(v string) *TaskDefinition {
 // SetFamily sets the Family field's value.
 func (s *TaskDefinition) SetFamily(v string) *TaskDefinition {
 	s.Family = &v
+	return s
+}
+
+// SetInferenceAccelerators sets the InferenceAccelerators field's value.
+func (s *TaskDefinition) SetInferenceAccelerators(v []*InferenceAccelerator) *TaskDefinition {
+	s.InferenceAccelerators = v
 	return s
 }
 
@@ -11934,6 +12100,16 @@ const (
 
 	// PlacementStrategyTypeBinpack is a PlacementStrategyType enum value
 	PlacementStrategyTypeBinpack = "binpack"
+)
+
+const (
+	// PlatformDeviceTypeGpu is a PlatformDeviceType enum value
+	PlatformDeviceTypeGpu = "GPU"
+)
+
+const (
+	// ResourceTypeGpu is a ResourceType enum value
+	ResourceTypeGpu = "GPU"
 )
 
 const (

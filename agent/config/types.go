@@ -97,6 +97,10 @@ type Config struct {
 	// again when PollMetrics is set to true
 	PollingMetricsWaitDuration time.Duration
 
+	// DisableDockerHealthCheck configures whether container health feature was enabled
+	// on the instance
+	DisableDockerHealthCheck bool
+
 	// ReservedMemory specifies the amount of memory (in MB) to reserve for things
 	// other than containers managed by ECS
 	ReservedMemory uint16
@@ -269,6 +273,11 @@ type Config struct {
 	// API call will be overridden.
 	ContainerInstanceTags map[string]string
 
+	// GPUSupportEnabled specifies if the Agent is capable of launching GPU tasks
+	GPUSupportEnabled bool
 	// ImageCleanupExclusionList is the list of image names customers want to keep for their own use and delete automatically
 	ImageCleanupExclusionList []string
+
+	// NvidiaRuntime is the runtime to be used for passing Nvidia GPU devices to containers
+	NvidiaRuntime string `trim:"true"`
 }

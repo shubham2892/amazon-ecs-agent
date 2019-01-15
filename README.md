@@ -138,6 +138,8 @@ additional details on each available environment variable.
 | `ECS_CONTAINER_INSTANCE_TAGS` | `{"tag_key": "tag_val"}` | The metadata that you apply to the container instance to help you categorize and organize them. Each tag consists of a key and an optional value, both of which you define. Tag keys can have a maximum character length of 128 characters, and tag values can have a maximum length of 256 characters. If tags also exist on your container instance that are propagated using the `ECS_CONTAINER_INSTANCE_PROPAGATE_TAGS_FROM` parameter, those tags will be overwritten by the tags specified using `ECS_CONTAINER_INSTANCE_TAGS`. | `{}` | `{}` |
 | `ECS_ENABLE_UNTRACKED_IMAGE_CLEANUP` | `true` | Whether to allow the ECS agent to delete containers and images that are not part of ECS tasks. | `false` | `false` |
 | `ECS_EXCLUDE_UNTRACKED_IMAGE` | `alpine:latest` | Comma seperated list of `imageName:tag` of images that should not be deleted by the ECS agent if `ECS_ENABLE_UNTRACKED_IMAGE_CLEANUP` is enabled. | | |
+| `ECS_DISABLE_DOCKER_HEALTH_CHECK` | `false` | Whether to disable the Docker Container health check for the ECS Agent. | `false` | `false` |
+| `ECS_NVIDIA_RUNTIME` | nvidia | The Nvidia Runtime to be used to pass Nvidia GPU devices to containers. | nvidia | Not Applicable |
 
 ### Persistence
 
@@ -213,6 +215,10 @@ The following scripts are available to help develop the Amazon ECS Container Age
 
 Contributions and feedback are welcome! Proposals and pull requests will be considered and responded to. For more
 information, see the [CONTRIBUTING.md](https://github.com/aws/amazon-ecs-agent/blob/master/CONTRIBUTING.md) file.
+
+If you have a bug/and issue around the behavior of the ECS agent, please open it here.
+
+If you have a feature request, please open it over at the [AWS Containers Roadmap](https://github.com/aws/containers-roadmap).
 
 Amazon Web Services does not currently provide support for modified copies of this software.
 

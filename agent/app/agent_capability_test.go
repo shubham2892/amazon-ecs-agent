@@ -123,6 +123,9 @@ func TestCapabilities(t *testing.T) {
 			{
 				Name: aws.String(attributePrefix + capabilitySecretEnvASM),
 			},
+			{
+				Name: aws.String(attributePrefix + taskEIAAttributeSuffix),
+			},
 		}...)
 
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -597,6 +600,42 @@ func TestCapabilitiesContainerHealth(t *testing.T) {
 
 	_, ok := capMap["ecs.capability.container-health-check"]
 	assert.True(t, ok, "Could not find container health check capability when expected; got capabilities %v", capabilities)
+}
+
+func TestCapabilitiesContainerHealthDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_dockerapi.NewMockDockerClient(ctrl)
+	mockMobyPlugins := mock_mobypkgwrapper.NewMockPlugins(ctrl)
+
+	client.EXPECT().SupportedVersions().Return([]dockerclient.DockerVersion{
+		dockerclient.Version_1_24,
+	})
+	client.EXPECT().KnownVersions().Return(nil)
+	mockMobyPlugins.EXPECT().Scan().AnyTimes().Return([]string{}, nil)
+	client.EXPECT().ListPluginsWithFilters(gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any()).AnyTimes().Return([]string{}, nil)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	// Cancel the context to cancel async routines
+	defer cancel()
+	agent := &ecsAgent{
+		ctx:          ctx,
+		cfg:          &config.Config{DisableDockerHealthCheck: true},
+		dockerClient: client,
+		mobyPlugins:  mockMobyPlugins,
+	}
+
+	capabilities, err := agent.capabilities()
+	require.NoError(t, err)
+
+	capMap := make(map[string]bool)
+	for _, capability := range capabilities {
+		capMap[aws.StringValue(capability.Name)] = true
+	}
+
+	assert.NotContains(t, "ecs.capability.container-health-check", "Find container health check capability unexpected when it is disabled")
 }
 
 func TestCapabilitesListPluginsErrorCase(t *testing.T) {

@@ -136,6 +136,7 @@ type AgentOptions struct {
 	ContainerLinks   []string
 	PortBindings     map[nat.Port]map[string]string
 	EnableTaskENI    bool
+	GPUEnabled       bool
 }
 
 // verifyIntrospectionAPI verifies that we can talk to the agent's introspection http endpoint.
@@ -658,6 +659,19 @@ func RequireDockerAPIVersion(t *testing.T, selector string) {
 
 	if !match {
 		t.Skipf("Skipping test; requires %v, but api version is %v", selector, apiVersion)
+	}
+}
+
+func RequireRegions(t *testing.T, supportedRegions []string, region string) {
+	skipTest := true
+	for _, supportedRegion := range supportedRegions {
+		if region == supportedRegion {
+			skipTest = false
+		}
+	}
+
+	if skipTest {
+		t.Skipf("Skipping the test in unsupported region: %s", *ECS.Config.Region)
 	}
 }
 

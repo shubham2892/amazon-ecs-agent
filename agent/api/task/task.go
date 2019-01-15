@@ -69,6 +69,9 @@ const (
 	// credentials.
 	awsSDKCredentialsRelativeURIPathEnvironmentVariableName = "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
 
+	NvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
+	GPUAssociationType         = "gpu"
+
 	arnResourceSections  = 2
 	arnResourceDelimiter = "/"
 	// networkModeNone specifies the string used to define the `none` docker networking mode
@@ -105,6 +108,8 @@ type Task struct {
 	Version string
 	// Containers are the containers for the task
 	Containers []*apicontainer.Container
+	// Associations are the available associations for the task.
+	Associations []Association `json:"associations"`
 	// ResourcesMapUnsafe is the map of resource type to corresponding resources
 	ResourcesMapUnsafe resourcetype.ResourcesMap `json:"resources"`
 	// Volumes are the volumes for the task
@@ -191,6 +196,9 @@ type Task struct {
 	// containers of the Task
 	IPCMode string `json:"IpcMode,omitempty"`
 
+	// NvidiaRuntime is the runtime to pass Nvidia GPU devices to containers
+	NvidiaRuntime string `json:"NvidiaRuntime,omitempty"`
+
 	// lock is for protecting all fields in the task struct
 	lock sync.RWMutex
 }
@@ -262,7 +270,14 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 	if err != nil {
 		return apierrors.NewResourceInitError(task.Arn, err)
 	}
-
+	if cfg.GPUSupportEnabled {
+		err = task.addGPUResource()
+		if err != nil {
+			seelog.Errorf("Task [%s]: could not initialize GPU associations: %v", task.Arn, err)
+			return apierrors.NewResourceInitError(task.Arn, err)
+		}
+		task.NvidiaRuntime = cfg.NvidiaRuntime
+	}
 	task.initializeCredentialsEndpoint(credentialsManager)
 	task.initializeContainersV3MetadataEndpoint(utils.NewDynamicUUIDProvider())
 	task.addNetworkResourceProvisioningDependency(cfg)
@@ -270,6 +285,44 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 	task.addNamespaceSharingProvisioningDependency(cfg)
 
 	return nil
+}
+
+func (task *Task) addGPUResource() error {
+	for _, association := range task.Associations {
+		// One GPU can be associated with only one container
+		// That is why validating if association.Containers is of length 1
+		if association.Type == GPUAssociationType {
+			if len(association.Containers) == 1 {
+				container, ok := task.ContainerByName(association.Containers[0])
+				if !ok {
+					return fmt.Errorf("could not find container with name %s for associating GPU %s",
+						association.Containers[0], association.Name)
+				} else {
+					container.GPUIDs = append(container.GPUIDs, association.Name)
+				}
+			} else {
+				return fmt.Errorf("could not associate multiple containers to GPU %s", association.Name)
+			}
+		}
+	}
+	task.populateGPUEnvironmentVariables()
+	return nil
+}
+
+func (task *Task) populateGPUEnvironmentVariables() {
+	for _, container := range task.Containers {
+		if len(container.GPUIDs) > 0 {
+			gpuList := strings.Join(container.GPUIDs, ",")
+			envVars := make(map[string]string)
+			envVars[NvidiaVisibleDevicesEnvVar] = gpuList
+			container.MergeEnvironmentVariables(envVars)
+		}
+	}
+}
+
+func (task *Task) shouldRequireNvidiaRuntime(container *apicontainer.Container) bool {
+	_, ok := container.Environment[NvidiaVisibleDevicesEnvVar]
+	return ok
 }
 
 func (task *Task) initializeDockerLocalVolumes(dockerClient dockerapi.DockerClient, ctx context.Context) error {
@@ -380,7 +433,7 @@ func (task *Task) addSharedVolumes(SharedVolumeMatchFullConfig bool, ctx context
 	// if autoprovision == true, we will auto-provision the volume if it does not exist already
 	// else the named volume must exist
 	if !volumeConfig.Autoprovision {
-		volumeMetadata := dockerClient.InspectVolume(ctx, vol.Name, dockerapi.InspectVolumeTimeout)
+		volumeMetadata := dockerClient.InspectVolume(ctx, vol.Name, dockerclient.InspectVolumeTimeout)
 		if volumeMetadata.Error != nil {
 			return errors.Wrapf(volumeMetadata.Error, "initialize volume: volume detection failed, volume '%s' does not exist and autoprovision is set to false", vol.Name)
 		}
@@ -389,7 +442,7 @@ func (task *Task) addSharedVolumes(SharedVolumeMatchFullConfig bool, ctx context
 
 	// at this point we know autoprovision = true
 	// check if the volume configuration matches the one exists on the instance
-	volumeMetadata := dockerClient.InspectVolume(ctx, volumeConfig.DockerVolumeName, dockerapi.InspectVolumeTimeout)
+	volumeMetadata := dockerClient.InspectVolume(ctx, volumeConfig.DockerVolumeName, dockerclient.InspectVolumeTimeout)
 	if volumeMetadata.Error != nil {
 		// Inspect the volume timed out, fail the task
 		if _, ok := volumeMetadata.Error.(*dockerapi.DockerTimeoutError); ok {
@@ -927,6 +980,14 @@ func (task *Task) dockerHostConfig(container *apicontainer.Container, dockerCont
 		PortBindings: dockerPortMap,
 		VolumesFrom:  volumesFrom,
 		Resources:    resources,
+	}
+
+	if task.shouldRequireNvidiaRuntime(container) {
+		if task.NvidiaRuntime == "" {
+			return nil, &apierrors.HostConfigError{"Runtime is not set for GPU containers"}
+		}
+		seelog.Debugf("Setting runtime as %s for container %s", task.NvidiaRuntime, container.Name)
+		hostConfig.Runtime = task.NvidiaRuntime
 	}
 
 	if container.DockerConfig.HostConfig != nil {
@@ -1756,4 +1817,38 @@ func (task *Task) getIPCMode() string {
 	defer task.lock.RUnlock()
 
 	return task.IPCMode
+}
+
+// AssociationByTypeAndContainer gets a list of names of all the associations associated with a container and of a
+// certain type
+func (task *Task) AssociationsByTypeAndContainer(associationType, containerName string) []string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	var associationNames []string
+	for _, association := range task.Associations {
+		if association.Type == associationType {
+			for _, associatedContainerName := range association.Containers {
+				if associatedContainerName == containerName {
+					associationNames = append(associationNames, association.Name)
+				}
+			}
+		}
+	}
+
+	return associationNames
+}
+
+// AssociationByTypeAndName gets an association of a certain type and name
+func (task *Task) AssociationByTypeAndName(associationType, associationName string) (*Association, bool) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	for _, association := range task.Associations {
+		if association.Type == associationType && association.Name == associationName {
+			return &association, true
+		}
+	}
+
+	return nil, false
 }

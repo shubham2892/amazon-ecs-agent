@@ -112,6 +112,8 @@ func TestEnvironmentConfig(t *testing.T) {
 	defer setTestEnv("ECS_ENABLE_TASK_ENI", "true")()
 	defer setTestEnv("ECS_TASK_METADATA_RPS_LIMIT", "1000,1100")()
 	defer setTestEnv("ECS_SHARED_VOLUME_MATCH_FULL_CONFIG", "true")()
+	defer setTestEnv("ECS_ENABLE_GPU_SUPPORT", "true")()
+	defer setTestEnv("ECS_NVIDIA_RUNTIME", "nvidia")()
 	defer setTestEnv("ECS_POLL_METRICS", "true")()
 	defer setTestEnv("ECS_POLLING_METRICS_WAIT_DURATION", "10s")()
 	additionalLocalRoutesJSON := `["1.2.3.4/22","5.6.7.8/32"]`
@@ -157,6 +159,8 @@ func TestEnvironmentConfig(t *testing.T) {
 	assert.Equal(t, 1000, conf.TaskMetadataSteadyStateRate)
 	assert.Equal(t, 1100, conf.TaskMetadataBurstRate)
 	assert.True(t, conf.SharedVolumeMatchFullConfig, "Wrong value for SharedVolumeMatchFullConfig")
+	assert.True(t, conf.GPUSupportEnabled, "Wrong value for GPUSupportEnabled")
+	assert.Equal(t, "nvidia", conf.NvidiaRuntime)
 }
 
 func TestTrimWhitespaceWhenCreating(t *testing.T) {
@@ -183,10 +187,12 @@ func TestTrimWhitespace(t *testing.T) {
 
 func TestConfigBoolean(t *testing.T) {
 	defer setTestRegion()()
+	defer setTestEnv("ECS_DISABLE_DOCKER_HEALTH_CHECK", "true")()
 	defer setTestEnv("ECS_DISABLE_METRICS", "true")()
 	cfg, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.True(t, cfg.DisableMetrics)
+	assert.True(t, cfg.DisableDockerHealthCheck)
 }
 
 func TestBadLoggingDriverSerialization(t *testing.T) {
@@ -728,6 +734,14 @@ func TestContainerInstancePropagateTagsFrom(t *testing.T) {
 				"Wrong value for ContainerInstancePropagateTagsFrom")
 		})
 	}
+}
+
+func TestGPUSupportEnabled(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_ENABLE_GPU_SUPPORT", "true")()
+	cfg, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+	assert.NoError(t, err)
+	assert.True(t, cfg.GPUSupportEnabled, "Wrong value for GPUSupportEnabled")
 }
 
 func setTestRegion() func() {

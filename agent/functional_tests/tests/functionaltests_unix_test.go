@@ -28,8 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/amazon-ecs-agent/agent/ec2"
 	ecsapi "github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	. "github.com/aws/amazon-ecs-agent/agent/functional_tests/util"
+	"github.com/aws/amazon-ecs-agent/agent/gpu"
 	"github.com/aws/amazon-ecs-agent/agent/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -42,6 +44,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -567,8 +570,9 @@ func TestFluentdTag(t *testing.T) {
 	// tag was added in docker 1.9.0
 	RequireDockerVersion(t, ">=1.9.0")
 
-	if runtime.GOOS == "arm64" {
-		t.Skip()
+	// Skipping the test for arm as they do not have official support for Arm images
+	if runtime.GOARCH == "arm64" {
+		t.Skip("Skipping test, unsupported image for arm64")
 	}
 
 	fluentdDriverTest("fluentd-tag", t)
@@ -581,8 +585,9 @@ func TestFluentdLogTag(t *testing.T) {
 	RequireDockerVersion(t, ">=1.8.0")
 	RequireDockerVersion(t, "<1.12.0")
 
-	if runtime.GOOS == "arm64" {
-		t.Skip()
+	// Skipping the test for arm as they do not have official support for Arm images
+	if runtime.GOARCH == "arm64" {
+		t.Skip("Skipping test, unsupported image for arm64")
 	}
 
 	fluentdDriverTest("fluentd-log-tag", t)
@@ -755,7 +760,14 @@ func TestExecutionRole(t *testing.T) {
 	agent.RequireVersion(">=1.16.0")
 
 	tdOverrides := make(map[string]string)
-	testImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/executionrole:fts", accountID, *ECS.Config.Region)
+
+	testImage := ""
+
+	if runtime.GOARCH == "arm64" {
+		testImage = fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/executionrole:arm-fts", accountID, *ECS.Config.Region)
+	} else {
+		testImage = fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/executionrole:fts", accountID, *ECS.Config.Region)
+	}
 
 	tdOverrides["$$$$TEST_REGION$$$$"] = aws.StringValue(ECS.Config.Region)
 	tdOverrides["$$$$EXECUTION_ROLE$$$$"] = os.Getenv("ECS_FTS_EXECUTION_ROLE")
@@ -1331,4 +1343,85 @@ func TestASMSecretsARN(t *testing.T) {
 	require.NoError(t, err)
 	exitCode, _ := task.ContainerExitcode("secrets-environment-variables")
 	assert.Equal(t, 42, exitCode, fmt.Sprintf("Expected exit code of 42; got %d", exitCode))
+}
+
+// Note: This functional test requires ECS GPU instance which has atleast 2 GPUs
+func TestRunGPUTask(t *testing.T) {
+	gpuInstances := []string{"p2", "p3", "g3"}
+	var isGPUInstance bool
+	iid, _ := ec2.NewEC2MetadataClient(nil).InstanceIdentityDocument()
+	for _, gpuInstance := range gpuInstances {
+		if strings.HasPrefix(iid.InstanceType, gpuInstance) {
+			// GPU test should only run on p2/p3/g3 ECS instances
+			isGPUInstance = true
+			break
+		}
+	}
+	if !isGPUInstance {
+		t.Skip("Skipped because the instance type is not a supported GPU instance type")
+	}
+	if _, err := os.Stat(gpu.NvidiaGPUInfoFilePath); os.IsNotExist(err) {
+		t.Skip("Skipped because GPU information file does not exist")
+	}
+	agent := RunAgent(t, &AgentOptions{
+		ExtraEnvironment: map[string]string{
+			// required environment variable to register with GPU devices
+			"ECS_ENABLE_GPU_SUPPORT": "true",
+		},
+		GPUEnabled: true,
+	})
+	defer agent.Cleanup()
+	// TODO: after release, change it to 1.24.0
+	agent.RequireVersion(">=1.22.0")
+
+	testTask, err := agent.StartTask(t, "nvidia-gpu")
+	require.NoError(t, err)
+
+	err = testTask.WaitStopped(2 * time.Minute)
+	require.NoError(t, err)
+
+	if exit, ok := testTask.ContainerExitcode("exit"); !ok || exit != 42 {
+		t.Errorf("Expected exit to exit with 42; actually exited (%v) with %v", ok, exit)
+	}
+
+	defer agent.SweepTask(testTask)
+}
+
+// TestElasticInferenceValidator tests the workflow of an elastic inference task
+func TestElasticInferenceValidator(t *testing.T) {
+	supportedRegions := []string{"us-west-2", "us-east-1", "ap-northeast-2"}
+	RequireRegions(t, supportedRegions, *ECS.Config.Region)
+
+	// Best effort to create a log group. It should be safe to even not do this
+	// as the log group gets created in the TestAWSLogsDriver functional test.
+	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
+	cwlClient.CreateLogGroup(&cloudwatchlogs.CreateLogGroupInput{
+		LogGroupName: aws.String(awslogsLogGroupName),
+	})
+
+	agentOptions := &AgentOptions{
+		EnableTaskENI: true,
+		ExtraEnvironment: map[string]string{
+			"ECS_AVAILABLE_LOGGING_DRIVERS": `["awslogs"]`,
+		},
+	}
+
+	agent := RunAgent(t, agentOptions)
+	defer agent.Cleanup()
+
+	tdOverrides := make(map[string]string)
+	tdOverrides["$$$TEST_REGION$$$"] = *ECS.Config.Region
+	tdOverrides["$$$TEST_AWSLOGS_STREAM_PREFIX$$$"] = "ecs-functional-tests-elastic-inference-validator"
+
+	var task *TestTask
+	var err error
+
+	task, err = agent.StartAWSVPCTask("task-elastic-inference", tdOverrides)
+	require.NoError(t, err, "Error starting elastic inference task")
+
+	err = task.WaitStopped(waitTaskStateChangeDuration)
+	require.NoError(t, err, "Error waiting for task to transition to STOPPED")
+
+	exitCode, _ := task.ContainerExitcode("container_1")
+	assert.Equal(t, 42, exitCode, fmt.Sprintf("Expected exit code of 42 for container; got %d", exitCode))
 }
