@@ -85,7 +85,7 @@ func New(url string,
 // AddRequestHandler). All request handlers should be added prior to making this
 // call as unhandled requests will be discarded.
 func (cs *clientServer) Serve() error {
-	seelog.Debug("TCS client starting websocket poll loop")
+	seelog.Debug("TTTCS client starting websocket poll loop")
 	if !cs.IsReady() {
 		return fmt.Errorf("tcs client: websocket not ready for connections")
 	}
