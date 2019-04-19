@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/amazon-ecs-agent/agent/ec2"
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient/sdkclientfactory"
 	"github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	"github.com/aws/amazon-ecs-agent/agent/handlers/v1"
@@ -277,6 +278,10 @@ func (agent *TestAgent) startAWSVPCTask(taskDefinition string) (*TestTask, error
 			},
 		},
 	})
+
+	agent.t.Logf("Task Respone: %v", resp)
+	agent.t.Logf("Task Respone: %v", err)
+
 	if err != nil {
 		return nil, err
 	}
@@ -725,6 +730,20 @@ func GetInstanceMetadata(path string) (string, error) {
 	return ec2MetadataClient.GetMetadata(path)
 }
 
+// RequireInstanceTypes skips the test if current instance type is not a supported instance type
+func RequireInstanceTypes(t *testing.T, supportedTypePrefixes []string) {
+	iid, _ := ec2.NewEC2MetadataClient(nil).InstanceIdentityDocument()
+	instanceType := iid.InstanceType
+	for _, prefix := range supportedTypePrefixes {
+		if strings.HasPrefix(instanceType, prefix) {
+			return
+		}
+	}
+
+	t.Skipf("Skipped because the instance type %s is not a supported instance type. Supported instance type: %v",
+		instanceType, supportedTypePrefixes)
+}
+
 // GetInstanceIAMRole gets the iam roles attached to the instance profile
 func GetInstanceIAMRole() (*iam.Role, error) {
 	// This returns the name of the role
@@ -864,6 +883,45 @@ func GetAccountID() (string, error) {
 	return instanceIdentity.AccountID, nil
 }
 
+// WaitContainerInstanceActive waits for a container instance to reach ACTIVE status by polling its status
+func (agent *TestAgent) WaitContainerInstanceActive(timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	errChan := make(chan error, 1)
+	containerInstanceStatus := ""
+	desiredStatus := "ACTIVE"
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			status, err := agent.getContainerInstanceStatus()
+			if err != nil {
+				errChan <- err
+				return
+			}
+			containerInstanceStatus = status
+
+			if status == desiredStatus {
+				break
+			}
+			if status == "REGISTRATION_FAILED" || status == "INACTIVE" {
+				errChan <- errors.Errorf("Container instance ends at status %s; will never reach ACTIVE", status)
+				return
+			}
+			time.Sleep(5 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for container instance '%s' to reach 'ACTIVE', status is '%s'",
+			agent.ContainerInstanceArn, containerInstanceStatus)
+	}
+}
+
 // GetTaskID returns the task id from the task arn
 func GetTaskID(taskARN string) (string, error) {
 	// Parse taskARN
@@ -885,4 +943,21 @@ func GetTaskID(taskARN string) (string, error) {
 	}
 
 	return resourceSplit[1], nil
+}
+
+func (agent *TestAgent) getContainerInstanceStatus() (string, error) {
+	res, err := ECS.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
+		Cluster: aws.String(agent.Cluster),
+		ContainerInstances: aws.StringSlice([]string{agent.ContainerInstanceArn}),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if len(res.Failures) != 0 {
+		return "", errors.Errorf("unable to describe container instance %s: %v", agent.ContainerInstanceArn, res.Failures)
+	}
+
+	return aws.StringValue(res.ContainerInstances[0].Status), nil
 }

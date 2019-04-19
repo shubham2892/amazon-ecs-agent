@@ -775,6 +775,16 @@ func TestAgentIntrospectionValidator(t *testing.T) {
 
 func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 	RequireDockerVersion(t, ">=17.06.0-ce")
+	RequireInstanceTypes(t, []string{"c5", "m5", "r5", "z1d", "a1"})
+
+	
+	// Enable ENI Trunking account setting
+	putAccountSettingInput := ecsapi.PutAccountSettingInput{
+		Name:  aws.String("awsvpcTrunking"),
+		Value: aws.String("enabled"),
+	}
+	_, err := ECS.PutAccountSetting(&putAccountSettingInput)
+	assert.NoError(t, err)
 
 	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
 	agent := RunAgent(t, &AgentOptions{
@@ -782,11 +792,12 @@ func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 		// TODO set ECS_ENABLE_HIGH_DENSITY_ENI flag to true
 		ExtraEnvironment: map[string]string{
 			"ECS_ENABLE_TASK_IAM_ROLE": "true",
-			"ECS_ENABLE_HIGH_DENSITY_ENI": "false",
+			"ECS_ENABLE_HIGH_DENSITY_ENI": "true",
 			"ECS_AVAILABLE_LOGGING_DRIVERS": `["awslogs"]`,
 		},
 	})
 
+	agent.WaitContainerInstanceActive(1 * time.Minute)
 	defer agent.Cleanup()
 
 	// TODO Update the agent version in final testing
@@ -805,13 +816,13 @@ func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 	tdOverrides["$$$TEST_REGION$$$"] = *ECS.Config.Region
 
 
-	numToRun := 3
+	numToRun := 2
 	tasks := make([]*TestTask, numToRun)
 
 	for numRun := 0; numRun < numToRun; numRun++ {
 		task, err := agent.StartAWSVPCTask("test-eni-trunking", tdOverrides)
 		require.NoError(t, err, "Unable to start task with trunk ENI enabled in 'awsvpc' network mode")
-
+		
 		if err != nil {
 			continue
 		}
@@ -821,7 +832,7 @@ func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 	t.Logf("Ran %v containers;", numToRun)
 
 	for _, task := range tasks {
-		err := task.WaitStopped(waitTaskStateChangeDuration)
+		err := task.WaitStopped(2* waitTaskStateChangeDuration)
 		assert.NoError(t, err, "Error waiting for task to transition to STOPPED")
 		exitCode, ok := task.ContainerExitcode("eni-trunking-validator")
 		assert.True(t, ok, "Get exit code failed")

@@ -208,8 +208,8 @@ test-in-docker:
 	# Privileged needed for docker-in-docker so integ tests pass
 	docker run --net=none -v "$(PWD):/go/src/github.com/aws/amazon-ecs-agent" --privileged "amazon/amazon-ecs-agent-test:make"
 
-run-functional-tests: testnnp test-registry ecr-execution-role-image telemetry-test-image
-	. ./scripts/shared_env && go test -tags functional -timeout=60m -v ./agent/functional_tests/...
+run-functional-tests: testnnp ecr-execution-role-image telemetry-test-image
+	. ./scripts/shared_env && ECS_BACKEND_HOST=https://madison.us-west-2.amazonaws.com go test -tags functional -timeout=60m -v -count=1 -run TestRunAWSVPCTaskWithENITrunkingEndPointValidation ./agent/functional_tests/...
 
 .PHONY: build-image-for-ecr ecr-execution-role-image-for-upload upload-images replicate-images
 
