@@ -93,7 +93,7 @@ func verifyContainerStoppedStateChangeWithExitCode(t *testing.T, taskEngine Task
 	event := <-stateChangeEvents
 	assert.Equal(t, event.(api.ContainerStateChange).Status, apicontainerstatus.ContainerStopped,
 		"Expected container to be STOPPED")
-	assert.EqualValues(t, exitCode, event.(api.ContainerStateChange).ExitCode,
+	assert.Equal(t, exitCode, *event.(api.ContainerStateChange).ExitCode,
 		"Wrong exit code")
 }
 
