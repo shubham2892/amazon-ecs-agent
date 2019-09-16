@@ -1425,3 +1425,60 @@ func TestPerContainerStopTimeout(t *testing.T) {
 		t.Errorf("Container should have stopped eariler, but stopped after %v", ttime.Since(startTime))
 	}
 }
+
+func TestMetadataContainerInstanceIntegration(t *testing.T) {
+	os.Setenv("ECS_ENABLE_CONTAINER_METADATA", "true")
+	os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
+
+	defer os.Unsetenv("ECS_ENABLE_CONTAINER_METADATA")
+	defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
+
+	taskEngine, done, _ := setupWithDefaultConfig(t)
+	defer done()
+	memoryReservation := 50
+
+	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint), sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
+	require.NoError(t, err, "Creating go docker client failed")
+
+	testArn := "TestMetadataContainerInstance"
+	testTask := createTestTask(testArn)
+	// Assign an invalid image to the task, and verify the task fails
+	// when the pull image behavior is "always".
+	testTask.Containers = []*apicontainer.Container{
+		createTestContainerWithImageAndName("amazon/amazon-ecs-container-metadata-file-validator:make", testArn)}
+
+	stateChangeEvents := taskEngine.StateChangeEvents()
+	go taskEngine.AddTask(testTask)
+	verifyTaskIsRunning(stateChangeEvents, testTask)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
+	cid := containerMap[testTask.Containers[0].Name].DockerID
+	state, _ := client.ContainerInspect(ctx, cid)
+
+	containerMetadataFileFound := false
+	if state.Config != nil {
+		for _, env := range state.Config.Env {
+			if strings.HasPrefix(env, "ECS_CONTAINER_METADATA_FILE=") {
+				containerMetadataFileFound = true
+				break
+			}
+		}
+	}
+
+	// Kill the existing container now
+	taskUpdate := createTestTask(testArn)
+	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
+	go taskEngine.AddTask(taskUpdate)
+
+	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
+	verifyTaskStoppedStateChange(t, taskEngine)
+
+	if !containerMetadataFileFound {
+		t.Errorf("Could not find ECS_CONTAINER_METADATA_FILE in the container environment variable")
+	}
+}
+
+

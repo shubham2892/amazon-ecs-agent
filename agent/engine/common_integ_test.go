@@ -88,6 +88,15 @@ func verifyContainerStoppedStateChangeWithRuntimeID(t *testing.T, taskEngine Tas
 		"Expected container runtimeID should not empty")
 }
 
+func verifyContainerStoppedStateChangeWithExitCode(t *testing.T, taskEngine TaskEngine, exitCode int) {
+	stateChangeEvents := taskEngine.StateChangeEvents()
+	event := <-stateChangeEvents
+	assert.Equal(t, event.(api.ContainerStateChange).Status, apicontainerstatus.ContainerStopped,
+		"Expected container to be STOPPED")
+	assert.EqualValues(t, exitCode, event.(api.ContainerStateChange).ExitCode,
+		"Wrong exit code")
+}
+
 func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) (TaskEngine, func(), credentials.Manager) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
