@@ -125,7 +125,7 @@ test-silent:
 	$(eval VERBOSE=)
 	${GOTEST} -tags unit -timeout=30s ./agent/...
 
-run-integ-tests: gremlin run-sudo-tests
+run-integ-tests: gremlin container-health-check-image
 	ECS_LOGLEVEL=debug ${GOTEST} -tags integration -run TestMetadataContainerInstanceIntegration -timeout=25m ./agent/...
 
 run-sudo-tests:
