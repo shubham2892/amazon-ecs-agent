@@ -1435,7 +1435,6 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 
 	taskEngine, done, _ := setupWithDefaultConfig(t)
 	defer done()
-	memoryReservation := 50
 
 	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint), sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
 	require.NoError(t, err, "Creating go docker client failed")
