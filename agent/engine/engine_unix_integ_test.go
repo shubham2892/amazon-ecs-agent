@@ -1572,7 +1572,8 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	cid := containerMap[testTask.Containers[0].Name].DockerID
 	state, _ := client.ContainerInspect(ctx, cid)
 
-	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
+	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion("us-west-2"))
+	awslogsLogGroupName:= "ecs-functional-tests"
 
 	// Delete the log stream after the test
 	defer cwlClient.DeleteLogStream(&cloudwatchlogs.DeleteLogStreamInput{
