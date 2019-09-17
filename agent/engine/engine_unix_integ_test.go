@@ -1580,10 +1580,11 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	awslogsLogGroupName:= "ecs-functional-tests"
 
 	// Delete the log stream after the test
-	//defer cwlClient.DeleteLogStream(&cloudwatchlogs.DeleteLogStreamInput{
-	//	LogGroupName:  aws.String(awslogsLogGroupName),
-	//	LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", "1234567")),
-	//})
+	defer cwlClient.DeleteLogStream(&cloudwatchlogs.DeleteLogStreamInput{
+		LogGroupName:  aws.String(awslogsLogGroupName),
+		LogStreamName: aws.String(fmt.Sprintf("%s", cid)),
+
+	})
 
 	params := &cloudwatchlogs.GetLogEventsInput{
 		LogGroupName:  aws.String(awslogsLogGroupName),
