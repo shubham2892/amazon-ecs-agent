@@ -31,7 +31,9 @@ import (
 
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
+	ecsapi "github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
+	. "github.com/aws/amazon-ecs-agent/agent/functional_tests/util"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/config"
@@ -48,6 +50,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+
 
 )
 
@@ -1571,8 +1576,10 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	cid := containerMap[testTask.Containers[0].Name].DockerID
 	state, _ := client.ContainerInspect(ctx, cid)
 
-	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
+	taskID, err := GetTaskID(aws.StringValue(testArn))
+	require.NoError(t, err)
 
+	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
 
 	// Delete the log stream after the test
 	defer cwlClient.DeleteLogStream(&cloudwatchlogs.DeleteLogStreamInput{
