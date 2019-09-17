@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cihub/seelog"
 	"os"
 
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
@@ -128,7 +129,9 @@ func (manager *metadataManager) Create(config *dockercontainer.Config, hostConfi
 
 	// Acquire the metadata then write it in JSON format to the file
 	metadata := manager.parseMetadataAtContainerCreate(task, containerName)
+	seelog.Info("Container metadata file written")
 	err = manager.marshalAndWrite(metadata, task.Arn, containerName)
+	seelog.Info(metadata)
 	if err != nil {
 		return err
 	}
