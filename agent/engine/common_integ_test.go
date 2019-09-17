@@ -104,11 +104,14 @@ func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) 
 	if os.Getenv("ECS_SKIP_ENGINE_INTEG_TEST") != "" {
 		t.Skip("ECS_SKIP_ENGINE_INTEG_TEST")
 	}
+
+	cfg.DataDirOnHost = "/var/lib/ecs"
+	cfg.DataDir = "/var/lib/ecs"
+
 	if !isDockerRunning() {
 		t.Skip("Docker not running")
 	}
 
-	cfg.DataDirOnHost = "/var/lib/ecs"
 
 	sdkClientFactory := sdkclientfactory.NewFactory(ctx, dockerEndpoint)
 	dockerClient, err := dockerapi.NewDockerGoClient(sdkClientFactory, cfg, context.Background())
