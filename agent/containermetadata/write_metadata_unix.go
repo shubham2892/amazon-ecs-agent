@@ -17,6 +17,7 @@ package containermetadata
 
 import (
 	"fmt"
+	"github.com/cihub/seelog"
 	"path/filepath"
 
 	"github.com/aws/amazon-ecs-agent/agent/utils/ioutilwrapper"
@@ -51,7 +52,8 @@ func writeToMetadataFile(osWrap oswrapper.OS, ioutilWrap ioutilwrapper.IOUtil, d
 		return fmt.Errorf("write to metadata file for task %s container %s: %v", taskARN, containerName, err)
 	}
 	metadataFileName := filepath.Join(metadataFileDir, metadataFile)
-
+	seelog.Info("File name")
+	seelog.Info(metadataFileName)
 	temp, err := ioutilWrap.TempFile(metadataFileDir, tempFile)
 	if err != nil {
 		return err

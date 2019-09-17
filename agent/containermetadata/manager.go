@@ -123,6 +123,8 @@ func (manager *metadataManager) Create(config *dockercontainer.Config, hostConfi
 	}
 
 	err = manager.osWrap.MkdirAll(metadataDirectoryPath, os.ModePerm)
+	seelog.Infof("File directory created")
+	seelog.Info(metadataDirectoryPath)
 	if err != nil {
 		return fmt.Errorf("creating metadata directory for task %s: %v", task.Arn, err)
 	}
