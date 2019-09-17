@@ -1467,6 +1467,10 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 		}
 	}
 
+	if !containerMetadataFileFound {
+		t.Errorf("Could not find ECS_CONTAINER_METADATA_FILE in the container environment variable")
+	}
+
 	// Kill the existing container now
 	taskUpdate := createTestTask(testArn)
 	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
@@ -1475,9 +1479,6 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
 	verifyTaskStoppedStateChange(t, taskEngine)
 
-	if !containerMetadataFileFound {
-		t.Errorf("Could not find ECS_CONTAINER_METADATA_FILE in the container environment variable")
-	}
 }
 
 
