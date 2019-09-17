@@ -47,6 +47,8 @@ import (
 	sdkClient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+
 )
 
 const (
@@ -1537,5 +1539,160 @@ func TestV3TaskEndpointIntegration(t *testing.T) {
 	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
 	//verifyTaskStoppedStateChange(t, taskEngine)
 }
+
+func TestExecutionRoleIntegration(t *testing.T) {
+	taskEngine, done, _ := setupWithDefaultConfig(t)
+	defer done()
+
+	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint),
+		sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
+	require.NoError(t, err, "Creating go docker client failed")
+
+	testArn := "TestLogdriverOptions"
+	testTask := createTestTask(testArn)
+	testTask.SetExecutionRoleCredentialsID(os.Getenv("ECS_FTS_EXECUTION_ROLE"))
+	testTask.Containers[0].DockerConfig = apicontainer.DockerConfig{HostConfig: aws.String(`{
+	"LogConfig": {
+		"Type": "awslogs",
+		"Config": {
+			"awslogs-region": "$$$$TEST_REGION$$$$",
+			"awslogs-stream-prefix":"ecs-functional-tests",
+			"awslogs-group": "ecs-functional-tests"
+		}
+	}}`)}
+	stateChangeEvents := taskEngine.StateChangeEvents()
+	go taskEngine.AddTask(testTask)
+	verifyTaskIsRunning(stateChangeEvents, testTask)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
+	cid := containerMap[testTask.Containers[0].Name].DockerID
+	state, _ := client.ContainerInspect(ctx, cid)
+
+	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
+
+
+	// Delete the log stream after the test
+	defer cwlClient.DeleteLogStream(&cloudwatchlogs.DeleteLogStreamInput{
+		LogGroupName:  aws.String(awslogsLogGroupName),
+		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", taskID)),
+	})
+
+	params := &cloudwatchlogs.GetLogEventsInput{
+		LogGroupName:  aws.String(awslogsLogGroupName),
+		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", taskID)),
+	}
+
+	resp, err := waitCloudwatchLogs(cwlClient, params)
+	require.NoError(t, err, "CloudWatchLogs get log failed")
+	assert.Len(t, resp.Events, 1, fmt.Sprintf("Get unexpected number of log events: %d", len(resp.Events)))
+	assert.Equal(t, *resp.Events[0].Message, "hello world", fmt.Sprintf("Got log events message unexpected: %s", *resp.Events[0].Message))
+	// Search the audit log to verify the credential request from awslogs driver
+	//err = SearchStrInDir(filepath.Join(agent.TestDir, "log"), "audit.log.", "GetCredentialsExecutionRole")
+	//err = SearchStrInDir(filepath.Join(agent.TestDir, "log"), "audit.log.", *testTask.TaskArn)
+	//require.NoError(t, err, "Verify credential request failed")
+
+	// Kill the existing container now
+	taskUpdate := createTestTask(testArn)
+	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
+	go taskEngine.AddTask(taskUpdate)
+
+	verifyContainerStoppedStateChange(t, taskEngine)
+	verifyTaskStoppedStateChange(t, taskEngine)
+
+}
+
+// waitCloudwatchLogs wait until the logs has been sent to cloudwatchlogs
+func waitCloudwatchLogs(client *cloudwatchlogs.CloudWatchLogs, params *cloudwatchlogs.GetLogEventsInput) (*cloudwatchlogs.GetLogEventsOutput, error) {
+	// The test could fail for timing issue, so retry for 30 seconds to make this test more stable
+	for i := 0; i < 30; i++ {
+		resp, err := client.GetLogEvents(params)
+		if err != nil {
+			awsError, ok := err.(awserr.Error)
+			if !ok || awsError.Code() != "ResourceNotFoundException" {
+				return nil, err
+			}
+		} else if len(resp.Events) > 0 {
+			return resp, nil
+		}
+		time.Sleep(time.Second)
+	}
+
+	return nil, fmt.Errorf("Timeout waiting for the logs to be sent to cloud watch logs")
+}
+
+
+
+
+//func TestExecutionRoleIntegration(t *testing.T){
+//	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+//	os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
+//	os.Setenv("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", "true")
+//
+//	//defer os.Unsetenv("ECS_ENABLE_CONTAINER_METADATA")
+//	//defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
+//
+//
+//	//accountID, err := GetAccountID()
+//	assert.NoError(t, err, "acquiring account id failed")
+//
+//	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
+//
+//	taskEngine, done, _ := setupWithDefaultConfig(t)
+//	defer done()
+//
+//	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint), sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
+//	require.NoError(t, err, "Creating go docker client failed")
+//
+//	testImage := "amazon/executionrole:fts"
+//
+//	testArn := "test-execution-role"
+//	testTask := createTestTask(testArn)
+//	testTask.SetExecutionRoleCredentialsID(os.Getenv("ECS_FTS_EXECUTION_ROLE"))
+//
+//	// Assign an invalid image to the task, and verify the task fails
+//	// when the pull image behavior is "always".
+//	container := apicontainer.Container{
+//		createTestContainerWithImageAndName(testImage, testArn)}
+//
+//	testTask.Containers = []*apicontainer.Container{
+//		createTestContainerWithImageAndName(testImage, testArn)}
+//
+//	stateChangeEvents := taskEngine.StateChangeEvents()
+//	go taskEngine.AddTask(testTask)
+//	verifyTaskIsRunning(stateChangeEvents, testTask)
+//
+//	ctx, cancel := context.WithCancel(context.TODO())
+//	defer cancel()
+//
+//	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
+//	cid := containerMap[testTask.Containers[0].Name].DockerID
+//	state, _ := client.ContainerInspect(ctx, cid)
+//
+//	containerMetadataFileFound := false
+//	if state.Config != nil {
+//		for _, env := range state.Config.Env {
+//			if strings.HasPrefix(env, "ECS_CONTAINER_METADATA_URI=") {
+//				containerMetadataFileFound = true
+//				break
+//			}
+//		}
+//	}
+//
+//	if !containerMetadataFileFound {
+//		t.Errorf("Could not find ECS_CONTAINER_METADATA_URI= in the container environment variable")
+//	}
+//
+//	// Kill the existing container now
+//	//taskUpdate := createTestTask(testArn)
+//	//taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
+//	//go taskEngine.AddTask(taskUpdate)
+//
+//	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
+//	//verifyTaskStoppedStateChange(t, taskEngine)
+//}
+
 
 
