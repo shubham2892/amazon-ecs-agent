@@ -108,6 +108,8 @@ func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) 
 		t.Skip("Docker not running")
 	}
 
+	cfg.DataDirOnHost = "/var/lib/ecs"
+
 	sdkClientFactory := sdkclientfactory.NewFactory(ctx, dockerEndpoint)
 	dockerClient, err := dockerapi.NewDockerGoClient(sdkClientFactory, cfg, context.Background())
 	if err != nil {
