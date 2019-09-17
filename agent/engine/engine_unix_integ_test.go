@@ -1552,6 +1552,9 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	testArn := "arn:aws:ecs:us-west-2:12121212:task/1234567"
 	testTask := createTestTask(testArn)
 	testTask.SetExecutionRoleCredentialsID(os.Getenv("ECS_FTS_EXECUTION_ROLE"))
+	testTask.Containers = []*apicontainer.Container{
+		createTestContainerWithImageAndName("amazon/executionrole:fts", "execution-role")}
+
 	testTask.Containers[0].DockerConfig = apicontainer.DockerConfig{HostConfig: aws.String(`{
 	"LogConfig": {
 		"Type": "awslogs",
@@ -1596,12 +1599,12 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	//require.NoError(t, err, "Verify credential request failed")
 
 	// Kill the existing container now
-	taskUpdate := createTestTask(testArn)
-	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
-	go taskEngine.AddTask(taskUpdate)
+	//taskUpdate := createTestTask(testArn)
+	//taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
+	//go taskEngine.AddTask(taskUpdate)
 
-	verifyContainerStoppedStateChange(t, taskEngine)
-	verifyTaskStoppedStateChange(t, taskEngine)
+	//verifyContainerStoppedStateChange(t, taskEngine)
+	//verifyTaskStoppedStateChange(t, taskEngine)
 
 }
 
