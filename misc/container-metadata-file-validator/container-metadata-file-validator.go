@@ -205,7 +205,7 @@ func (status *MetadataStatus) UnmarshalText(text []byte) error {
 func main() {
 	// Let metadata service start up and initialize with data
 	time.Sleep(10 * time.Second)
-
+	fmt.Print("Testing 123")
 	containerMetadataFile, err := os.Open(os.Getenv(containerMetadataFileEnvVar))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read container metadata file: %v\n", err)
