@@ -105,7 +105,7 @@ func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) 
 		t.Skip("ECS_SKIP_ENGINE_INTEG_TEST")
 	}
 
-	//cfg.DataDirOnHost = "/var/lib/ecs"
+	cfg.DataDirOnHost = ""
 	cfg.DataDir = "/var/lib/ecs/data"
 
 	if !isDockerRunning() {
