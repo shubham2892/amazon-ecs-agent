@@ -1433,6 +1433,7 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	//os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
 
 	defer os.Unsetenv("ECS_ENABLE_CONTAINER_METADATA")
+	defer os.Unsetenv("HAS_PUBLIC_IP")
 	//defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
 
 	taskEngine, done, _ := setupWithDefaultConfig(t)
