@@ -94,7 +94,7 @@ func verifyContainerMetadataResponse(containerMetadataResponseMap map[string]jso
 	// Fields with known values
 	containerExpectedFieldEqualMap := map[string]interface{}{
 		"ContainerName":      "container-metadata-file-validator",
-		"ImageName":          "127.0.0.1:51670/amazon/amazon-ecs-container-metadata-file-validator:latest",
+		"ImageName":          "amazon/amazon-ecs-container-metadata-file-validator:make",
 		"MetadataFileStatus": MetadataReadyText,
 	}
 	// Fields that change dynamically, not predictable
