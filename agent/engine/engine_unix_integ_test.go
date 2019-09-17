@@ -1428,7 +1428,7 @@ func TestPerContainerStopTimeout(t *testing.T) {
 
 func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	os.Setenv("ECS_ENABLE_CONTAINER_METADATA", "true")
-	os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
+	//os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
 
 	defer os.Unsetenv("ECS_ENABLE_CONTAINER_METADATA")
 	defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
