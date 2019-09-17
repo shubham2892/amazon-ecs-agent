@@ -1560,7 +1560,6 @@ func TestExecutionRoleIntegration(t *testing.T) {
 		"Type": "awslogs",
 		"Config": {
 			"awslogs-region": "us-west-2",
-			"awslogs-stream-prefix":"ecs-functional-tests",
 			"awslogs-group": "ecs-functional-tests"
 		}
 	}}`)}
