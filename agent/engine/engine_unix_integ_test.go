@@ -1563,6 +1563,7 @@ func TestExecutionRoleIntegration(t *testing.T) {
 			"awslogs-group": "ecs-functional-tests"
 		}
 	}}`)}
+
 	stateChangeEvents := taskEngine.StateChangeEvents()
 	go taskEngine.AddTask(testTask)
 	verifyTaskIsRunning(stateChangeEvents, testTask)
@@ -1570,9 +1571,10 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	_, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	//containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
-	//cid := containerMap[testTask.Containers[0].Name].DockerID
+	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
+	cid := containerMap[testTask.Containers[0].Name].DockerID
 	//state, _ := client.ContainerInspect(ctx, cid)
+
 
 	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion("us-west-2"))
 	awslogsLogGroupName:= "ecs-functional-tests"
@@ -1585,7 +1587,7 @@ func TestExecutionRoleIntegration(t *testing.T) {
 
 	params := &cloudwatchlogs.GetLogEventsInput{
 		LogGroupName:  aws.String(awslogsLogGroupName),
-		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", "1234567")),
+		LogStreamName: aws.String(fmt.Sprintf("%s", cid)),
 	}
 
 	resp, err := waitCloudwatchLogs(cwlClient, params)
