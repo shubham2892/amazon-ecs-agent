@@ -221,9 +221,10 @@ func main() {
 	boolVar, err := strconv.ParseBool(os.Getenv(hasPublicIpEnvVar))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to parse environment variable %s: %v", hasPublicIpEnvVar, err)
-		os.Exit(1)
+		//os.Exit(1)
 	}
 	hasPublicIp = boolVar
+	hasPublicIp = false
 
 	// Parse file into struct to print to awslogs
 	var metadataResponse metadataSerializer
