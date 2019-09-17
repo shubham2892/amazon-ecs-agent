@@ -1527,12 +1527,12 @@ func TestV3TaskEndpointIntegration(t *testing.T) {
 	}
 
 	// Kill the existing container now
-	taskUpdate := createTestTask(testArn)
-	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
-	go taskEngine.AddTask(taskUpdate)
+	//taskUpdate := createTestTask(testArn)
+	//taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
+	//go taskEngine.AddTask(taskUpdate)
 
 	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
-	verifyTaskStoppedStateChange(t, taskEngine)
+	//verifyTaskStoppedStateChange(t, taskEngine)
 }
 
 
