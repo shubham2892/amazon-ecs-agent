@@ -106,7 +106,7 @@ func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) 
 	}
 
 	cfg.DataDirOnHost = "/var/lib/ecs"
-	cfg.DataDir = "/var/lib/ecs"
+	cfg.DataDir = "/var/lib/ecs/data"
 
 	if !isDockerRunning() {
 		t.Skip("Docker not running")
