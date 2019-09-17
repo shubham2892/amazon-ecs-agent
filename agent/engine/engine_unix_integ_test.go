@@ -1444,7 +1444,7 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	// Assign an invalid image to the task, and verify the task fails
 	// when the pull image behavior is "always".
 	testTask.Containers = []*apicontainer.Container{
-		createTestContainerWithImageAndName("amazon/amazon-ecs-container-metadata-file-validator:latest", "container-metadata-file-validator")}
+		createTestContainerWithImageAndName("amazon/amazon-ecs-container-metadata-file-validator:make", "container-metadata-file-validator")}
 
 	stateChangeEvents := taskEngine.StateChangeEvents()
 	go taskEngine.AddTask(testTask)
