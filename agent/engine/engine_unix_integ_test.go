@@ -1431,7 +1431,7 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	//os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
 
 	defer os.Unsetenv("ECS_ENABLE_CONTAINER_METADATA")
-	defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
+	//defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
 
 	taskEngine, done, _ := setupWithDefaultConfig(t)
 	defer done()
@@ -1479,6 +1479,60 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
 	verifyTaskStoppedStateChange(t, taskEngine)
 
+}
+
+func TestV3TaskEndpointIntegration(t *testing.T) {
+	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+	//os.Setenv("ECS_AVAILABLE_LOGGING_DRIVERS", `["awslogs"]`)
+
+	//defer os.Unsetenv("ECS_ENABLE_CONTAINER_METADATA")
+	//defer os.Unsetenv("ECS_AVAILABLE_LOGGING_DRIVERS")
+
+	taskEngine, done, _ := setupWithDefaultConfig(t)
+	defer done()
+
+	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint), sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
+	require.NoError(t, err, "Creating go docker client failed")
+
+	testArn := "v3-task-endpoint-validator"
+	testTask := createTestTask(testArn)
+	// Assign an invalid image to the task, and verify the task fails
+	// when the pull image behavior is "always".
+	testTask.Containers = []*apicontainer.Container{
+		createTestContainerWithImageAndName("amazon/amazon-ecs-v3-task-endpoint-validator:make", "v3-task-endpoint-validator")}
+
+	stateChangeEvents := taskEngine.StateChangeEvents()
+	go taskEngine.AddTask(testTask)
+	verifyTaskIsRunning(stateChangeEvents, testTask)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
+	cid := containerMap[testTask.Containers[0].Name].DockerID
+	state, _ := client.ContainerInspect(ctx, cid)
+
+	containerMetadataFileFound := false
+	if state.Config != nil {
+		for _, env := range state.Config.Env {
+			if strings.HasPrefix(env, "ECS_CONTAINER_METADATA_URI=") {
+				containerMetadataFileFound = true
+				break
+			}
+		}
+	}
+
+	if !containerMetadataFileFound {
+		t.Errorf("Could not find ECS_CONTAINER_METADATA_URI= in the container environment variable")
+	}
+
+	// Kill the existing container now
+	taskUpdate := createTestTask(testArn)
+	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
+	go taskEngine.AddTask(taskUpdate)
+
+	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
+	verifyTaskStoppedStateChange(t, taskEngine)
 }
 
 
