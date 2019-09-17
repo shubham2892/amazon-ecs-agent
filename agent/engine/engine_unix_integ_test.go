@@ -1570,7 +1570,7 @@ func TestExecutionRoleIntegration(t *testing.T) {
 
 	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
 	cid := containerMap[testTask.Containers[0].Name].DockerID
-	state, _ := client.ContainerInspect(ctx, cid)
+	//state, _ := client.ContainerInspect(ctx, cid)
 
 	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion("us-west-2"))
 	awslogsLogGroupName:= "ecs-functional-tests"
