@@ -36,10 +36,19 @@ const (
 // We add an additional uuid to the path to ensure it does not conflict with user mounts
 func createBindsEnv(binds []string, env []string, dataDirOnHost string, metadataDirectoryPath string) ([]string, []string) {
 	randID := uuid.New()
+	seelog.Info(binds)
+	seelog.Info(env)
+	seelog.Info(dataDirOnHost)
+	seelog.Info(metadataDirectoryPath)
+
 	instanceBind := fmt.Sprintf(`%s/%s:%s/%s`, dataDirOnHost, metadataDirectoryPath, mountPoint, randID)
 	metadataEnvVariable := fmt.Sprintf("%s=%s/%s/%s", metadataEnvironmentVariable, mountPoint, randID, metadataFile)
+
 	binds = append(binds, instanceBind)
 	env = append(env, metadataEnvVariable)
+
+
+
 	return binds, env
 }
 
