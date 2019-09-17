@@ -1439,7 +1439,7 @@ func TestMetadataContainerInstanceIntegration(t *testing.T) {
 	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint), sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
 	require.NoError(t, err, "Creating go docker client failed")
 
-	testArn := "TestMetadataContainerInstance"
+	testArn := "arn:aws:ecs:us-west-2:12121212:task/1234567"
 	testTask := createTestTask(testArn)
 	// Assign an invalid image to the task, and verify the task fails
 	// when the pull image behavior is "always".
