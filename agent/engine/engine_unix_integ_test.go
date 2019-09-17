@@ -1545,7 +1545,7 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	taskEngine, done, _ := setupWithDefaultConfig(t)
 	defer done()
 
-	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint),
+	_, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint),
 		sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
 	require.NoError(t, err, "Creating go docker client failed")
 
@@ -1565,11 +1565,11 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	go taskEngine.AddTask(testTask)
 	verifyTaskIsRunning(stateChangeEvents, testTask)
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	_, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
-	cid := containerMap[testTask.Containers[0].Name].DockerID
+	//containerMap, _ := taskEngine.(*DockerTaskEngine).state.ContainerMapByArn(testTask.Arn)
+	//cid := containerMap[testTask.Containers[0].Name].DockerID
 	//state, _ := client.ContainerInspect(ctx, cid)
 
 	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion("us-west-2"))
