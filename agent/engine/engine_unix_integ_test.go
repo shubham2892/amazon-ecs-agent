@@ -31,9 +31,7 @@ import (
 
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
-	ecsapi "github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
-	. "github.com/aws/amazon-ecs-agent/agent/functional_tests/util"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/config"
@@ -46,14 +44,12 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/utils"
 	"github.com/aws/amazon-ecs-agent/agent/utils/ttime"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	sdkClient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-
-
 )
 
 const (
@@ -1553,14 +1549,14 @@ func TestExecutionRoleIntegration(t *testing.T) {
 		sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
 	require.NoError(t, err, "Creating go docker client failed")
 
-	testArn := "TestLogdriverOptions"
+	testArn := "arn:aws:ecs:us-west-2:12121212:task/1234567"
 	testTask := createTestTask(testArn)
 	testTask.SetExecutionRoleCredentialsID(os.Getenv("ECS_FTS_EXECUTION_ROLE"))
 	testTask.Containers[0].DockerConfig = apicontainer.DockerConfig{HostConfig: aws.String(`{
 	"LogConfig": {
 		"Type": "awslogs",
 		"Config": {
-			"awslogs-region": "$$$$TEST_REGION$$$$",
+			"awslogs-region": "us-west-2",
 			"awslogs-stream-prefix":"ecs-functional-tests",
 			"awslogs-group": "ecs-functional-tests"
 		}
@@ -1576,20 +1572,17 @@ func TestExecutionRoleIntegration(t *testing.T) {
 	cid := containerMap[testTask.Containers[0].Name].DockerID
 	state, _ := client.ContainerInspect(ctx, cid)
 
-	taskID, err := GetTaskID(aws.StringValue(testArn))
-	require.NoError(t, err)
-
 	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
 
 	// Delete the log stream after the test
 	defer cwlClient.DeleteLogStream(&cloudwatchlogs.DeleteLogStreamInput{
 		LogGroupName:  aws.String(awslogsLogGroupName),
-		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", taskID)),
+		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", "1234567")),
 	})
 
 	params := &cloudwatchlogs.GetLogEventsInput{
 		LogGroupName:  aws.String(awslogsLogGroupName),
-		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", taskID)),
+		LogStreamName: aws.String(fmt.Sprintf("ecs-functional-tests/executionrole-awslogs-test/%s", "1234567")),
 	}
 
 	resp, err := waitCloudwatchLogs(cwlClient, params)
@@ -1629,9 +1622,6 @@ func waitCloudwatchLogs(client *cloudwatchlogs.CloudWatchLogs, params *cloudwatc
 
 	return nil, fmt.Errorf("Timeout waiting for the logs to be sent to cloud watch logs")
 }
-
-
-
 
 //func TestExecutionRoleIntegration(t *testing.T){
 //	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
@@ -1700,6 +1690,3 @@ func waitCloudwatchLogs(client *cloudwatchlogs.CloudWatchLogs, params *cloudwatc
 //	verifyContainerStoppedStateChangeWithExitCode(t, taskEngine, 42)
 //	//verifyTaskStoppedStateChange(t, taskEngine)
 //}
-
-
-
