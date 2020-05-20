@@ -19,6 +19,8 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
+	"github.com/vishvananda/netlink"
+	cnins "github.com/containernetworking/plugins/pkg/ns"
 )
 
 // dockerStatsToContainerStats returns a new object of the ContainerStats object from docker stats.
@@ -32,6 +34,7 @@ func dockerStatsToContainerStats(dockerStats *types.StatsJSON) (*ContainerStats,
 	cpuUsage := dockerStats.CPUStats.CPUUsage.TotalUsage / numCores
 	memoryUsage := dockerStats.MemoryStats.Usage - dockerStats.MemoryStats.Stats["cache"]
 	storageReadBytes, storageWriteBytes := getStorageStats(dockerStats)
+	getDockerStats()
 	networkStats := getNetworkStats(dockerStats)
 	return &ContainerStats{
 		cpuUsage:          cpuUsage,
@@ -63,4 +66,28 @@ func getStorageStats(dockerStats *types.StatsJSON) (uint64, uint64) {
 		}
 	}
 	return storageReadBytes, storageWriteBytes
+}
+
+func getDockerStats() {
+	fmt.Print("Getting docker stats")
+	var linksInTaskNetNS []netlink.Link
+
+
+	err := cnins.WithNetNSPath("net/ns/path", func(cnins.NetNS) error {
+		var linkErr error
+		linksInTaskNetNS, linkErr = netlink.LinkList()
+		if linkErr != nil {
+			return errors.Wrap(linkErr, "failed to get network links")
+		}
+		return nil
+	})
+	if err!=nil {
+		fmt.Print("ERrorer: %v", err)
+	}
+	//defer m.Done(err)()
+
+	//var deviceNames []string
+	for _, link := range linksInTaskNetNS {
+		fmt.Print(link)
+	}
 }
