@@ -16,6 +16,7 @@ package stats
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -75,6 +76,7 @@ func getStorageStats(dockerStats *types.StatsJSON) (uint64, uint64) {
 
 func getDockerStats() {
 	fmt.Print("Getting docker stats")
+	log.Printf("Getting docker stats")
 	var linksInTaskNetNS []netlink.Link
 	//ns := cninswrapper.NewNS()
 
