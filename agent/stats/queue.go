@@ -60,6 +60,8 @@ func (queue *Queue) Reset() {
 // Add adds a new set of container stats to the queue.
 func (queue *Queue) Add(dockerStat *types.StatsJSON) error {
 	queue.setLastStat(dockerStat)
+	seelog.Infof("Docker stats add")
+
 	stat, err := dockerStatsToContainerStats(dockerStat)
 	if err != nil {
 		return err

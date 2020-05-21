@@ -16,7 +16,6 @@ package stats
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -36,6 +35,7 @@ func dockerStatsToContainerStats(dockerStats *types.StatsJSON) (*ContainerStats,
 		seelog.Debug("Invalid container statistics reported, no cpu core usage reported")
 		return nil, fmt.Errorf("Invalid container statistics reported, no cpu core usage reported")
 	}
+	seelog.Infof("Docker stats container stats")
 
 	cpuUsage := dockerStats.CPUStats.CPUUsage.TotalUsage / numCores
 	memoryUsage := dockerStats.MemoryStats.Usage - dockerStats.MemoryStats.Stats["cache"]
@@ -76,7 +76,7 @@ func getStorageStats(dockerStats *types.StatsJSON) (uint64, uint64) {
 
 func getDockerStats() {
 	fmt.Print("Getting docker stats")
-	log.Printf("Getting docker stats")
+	seelog.Infof("Getting docker stats")
 	var linksInTaskNetNS []netlink.Link
 	//ns := cninswrapper.NewNS()
 

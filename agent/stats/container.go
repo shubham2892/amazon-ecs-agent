@@ -50,6 +50,8 @@ func newStatsContainer(dockerID string, client dockerapi.DockerClient, resolver 
 func (container *StatsContainer) StartStatsCollection() {
 	// queue will be sized to hold enough stats for 4 publishing intervals.
 	var queueSize int
+	seelog.Infof("Docker stats start stats collection")
+
 	if container.config != nil && container.config.PollMetrics {
 		pollingInterval := container.config.PollingMetricsWaitDuration.Seconds()
 		queueSize = int(config.DefaultContainerMetricsPublishInterval.Seconds() / pollingInterval * 4)
@@ -74,6 +76,8 @@ func (container *StatsContainer) collect() {
 			seelog.Debugf("Stopping stats collection for container %s", dockerID)
 			return
 		default:
+			seelog.Infof("Docker stats collect")
+
 			err := container.processStatsStream()
 			if err != nil {
 				d := backoff.Duration()
@@ -122,6 +126,8 @@ func (container *StatsContainer) processStatsStream() error {
 				}
 				return nil
 			}
+			seelog.Infof("Docker stats process stats stream")
+
 			if err := container.statsQueue.Add(rawStat); err != nil {
 				seelog.Warnf("Error converting stats for container %s: %v", dockerID, err)
 			}
