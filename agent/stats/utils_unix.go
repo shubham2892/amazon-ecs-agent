@@ -20,7 +20,9 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/vishvananda/netlink"
-	cnins "github.com/containernetworking/plugins/pkg/ns"
+	"github.com/aws/amazon-ecs-cni-plugins/pkg/cninswrapper"
+
+
 )
 
 // dockerStatsToContainerStats returns a new object of the ContainerStats object from docker stats.
@@ -71,9 +73,9 @@ func getStorageStats(dockerStats *types.StatsJSON) (uint64, uint64) {
 func getDockerStats() {
 	fmt.Print("Getting docker stats")
 	var linksInTaskNetNS []netlink.Link
+	ns := cninswrapper.NewNS()
 
-
-	err := cnins.WithNetNSPath("net/ns/path", func(cnins.NetNS) error {
+	err := ns.WithNetNSPath("net/ns/path", func(cnins.NetNS) error {
 		var linkErr error
 		linksInTaskNetNS, linkErr = netlink.LinkList()
 		if linkErr != nil {
