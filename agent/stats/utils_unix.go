@@ -20,8 +20,10 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/vishvananda/netlink"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
-	//"github.com/aws/amazon-ecs-cni-plugins/pkg/cninswrapper"
+	"github.com/containernetworking/cni/pkg/ns"
+	"github.com/aws/amazon-ecs-cni-plugins/pkg/cninswrapper"
+	"github.com/pkg/errors"
+
 
 
 )
@@ -73,24 +75,24 @@ func getStorageStats(dockerStats *types.StatsJSON) (uint64, uint64) {
 
 func getDockerStats() {
 	fmt.Print("Getting docker stats")
-	//var linksInTaskNetNS []netlink.Link
+	var linksInTaskNetNS []netlink.Link
 	//ns := cninswrapper.NewNS()
-	//
-	//err := ns.WithNetNSPath("net/ns/path", func(cnins.NetNS) error {
-	//	var linkErr error
-	//	linksInTaskNetNS, linkErr = netlink.LinkList()
-	//	if linkErr != nil {
-	//		return errors.Wrap(linkErr, "failed to get network links")
-	//	}
-	//	return nil
-	//})
-	//if err!=nil {
-	//	fmt.Print("ERrorer: %v", err)
-	//}
-	////defer m.Done(err)()
-	//
-	////var deviceNames []string
-	//for _, link := range linksInTaskNetNS {
-	//	fmt.Print(link)
-	//}
+
+	err := ns.WithNetNSPath("net/ns/path", func() error {
+		var linkErr error
+		linksInTaskNetNS, linkErr = netlink.LinkList()
+		if linkErr != nil {
+			return errors.Wrap(linkErr, "failed to get network links")
+		}
+		return nil
+	})
+	if err!=nil {
+		fmt.Print("ERrorer: %v", err)
+	}
+	//defer m.Done(err)()
+
+	//var deviceNames []string
+	for _, link := range linksInTaskNetNS {
+		fmt.Print(link)
+	}
 }
