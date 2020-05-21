@@ -22,8 +22,6 @@ import (
 	"github.com/vishvananda/netlink"
 	"github.com/containernetworking/cni/pkg/ns"
 	//"github.com/aws/amazon-ecs-cni-plugins/pkg/cninswrapper"
-	"github.com/pkg/errors"
-
 
 
 )
@@ -78,7 +76,7 @@ func getDockerStats() {
 	var linksInTaskNetNS []netlink.Link
 	//ns := cninswrapper.NewNS()
 
-	err := ns.WithNetNSPath("net/ns/path", func() error {
+	err := ns.WithNetNSPath("net/ns/path", func(ns.NetNS) error {
 		var linkErr error
 		linksInTaskNetNS, linkErr = netlink.LinkList()
 		if linkErr != nil {
