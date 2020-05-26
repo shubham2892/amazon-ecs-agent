@@ -1209,6 +1209,7 @@ func (engine *DockerTaskEngine) provisionContainerResources(task *apitask.Task, 
 
 	task.SetPausePIDInVolumeResources(strconv.Itoa(containerInspectOutput.State.Pid))
 
+	// May be a useful function
 	cniConfig, err := engine.buildCNIConfigFromTaskContainer(task, containerInspectOutput, true)
 	if err != nil {
 		return dockerapi.DockerContainerMetadata{
@@ -1219,6 +1220,7 @@ func (engine *DockerTaskEngine) provisionContainerResources(task *apitask.Task, 
 		}
 	}
 
+	// SetupNS getting invoked from here
 	// Invoke the libcni to config the network namespace for the container
 	result, err := engine.cniClient.SetupNS(engine.ctx, cniConfig, cniSetupTimeout)
 	if err != nil {

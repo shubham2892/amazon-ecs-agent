@@ -1101,6 +1101,7 @@ func (task *Task) AddFirelensContainerBindMounts(firelensConfig *apicontainer.Fi
 	return nil
 }
 
+// Build CNI Config for a task/ container
 // BuildCNIConfig builds a list of CNI network configurations for the task.
 // If includeIPAMConfig is set to true, the list also includes the bridge IPAM configuration.
 func (task *Task) BuildCNIConfig(includeIPAMConfig bool, cniConfig *ecscni.Config) (*ecscni.Config, error) {

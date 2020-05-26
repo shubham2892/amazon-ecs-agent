@@ -99,6 +99,7 @@ func (client *cniClient) SetupNS(
 	return client.setupNS(ctx, cfg)
 }
 
+// function thats setting up network namespace
 func (client *cniClient) setupNS(ctx context.Context, cfg *Config) (*current.Result, error) {
 	seelog.Debugf("[ECSCNI] Setting up the container namespace %s", cfg.ContainerID)
 
