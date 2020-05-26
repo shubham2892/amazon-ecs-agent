@@ -74,6 +74,9 @@ func getStorageStats(dockerStats *types.StatsJSON) (uint64, uint64) {
 	return storageReadBytes, storageWriteBytes
 }
 
+
+
+
 func getDockerStats() {
 	fmt.Print("Getting docker stats")
 	seelog.Infof("Getting docker stats")
@@ -83,6 +86,26 @@ func getDockerStats() {
 	err := ns.WithNetNSPath("/host/proc/14669/ns/net", func(ns.NetNS) error {
 		var linkErr error
 		linksInTaskNetNS, linkErr = netlink.LinkList()
+
+		for _, device := range linksInTaskNetNS {
+			var link netlink.Link
+			err := ns.WithNetNSPath("/host/proc/14669/ns/net", func(ns.NetNS) error {
+				var linkErr error
+				if link, linkErr = netlink.LinkByName(device); linkErr != nil {
+					seelog.Infof("first error -- %v", linkErr)
+					return errors.Wrapf(linkErr, "failed to collect links in task net namespace of device %v", device)
+				}
+				return nil
+			})
+			if err != nil {
+				//cmo.logger().WithError(err).Error("Failed to collect network stats")
+				seelog.Infof("Second Error -- %v", err)
+				return nil
+			}
+
+			netLinkStats := link.Attrs().Statistics
+			seelog.Infof("%d", netLinkStats.RxBytes)
+		}
 		seelog.Info(linksInTaskNetNS)
 		if linkErr != nil {
 			return errors.Wrap(linkErr, "failed to get network links")
