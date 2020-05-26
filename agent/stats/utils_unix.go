@@ -108,7 +108,7 @@ func getDockerStats() {
 			}
 
 			netLinkStats := link.Attrs().Statistics
-			seelog.Infof("%d", netLinkStats.RxBytes)
+			seelog.Infof("Received Bytes -- %d", netLinkStats.RxBytes)
 		}
 		seelog.Info(linksInTaskNetNS)
 		if linkErr != nil {
