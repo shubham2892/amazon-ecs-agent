@@ -80,7 +80,7 @@ func getDockerStats() {
 	var linksInTaskNetNS []netlink.Link
 	//ns := cninswrapper.NewNS()
 
-	err := ns.WithNetNSPath("/host/proc/14669/ns/", func(ns.NetNS) error {
+	err := ns.WithNetNSPath("/host/proc/14669/ns/net", func(ns.NetNS) error {
 		var linkErr error
 		linksInTaskNetNS, linkErr = netlink.LinkList()
 		seelog.Info(linksInTaskNetNS)
