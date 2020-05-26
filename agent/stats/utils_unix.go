@@ -87,7 +87,11 @@ func getDockerStats() {
 		var linkErr error
 		linksInTaskNetNS, linkErr = netlink.LinkList()
 
-		for _, device := range linksInTaskNetNS {
+		var deviceNames []string
+		for _, link := range linksInTaskNetNS {
+			deviceNames = append(deviceNames, link.Attrs().Name)
+		}
+		for _, device := range deviceNames {
 			var link netlink.Link
 			err := ns.WithNetNSPath("/host/proc/14669/ns/net", func(ns.NetNS) error {
 				var linkErr error
