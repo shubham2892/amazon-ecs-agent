@@ -65,6 +65,14 @@ type ContainerMetadata struct {
 	NetworkMode string `json:"-"`
 }
 
+type TaskMetadata struct {
+	TaskArn      string   `json:"-"`
+	// ContainerPID is the PID of a container in the task. If the task has multiple containers, the pid can belong
+	// to any container.
+	ContainerPID string   `json:"-"`
+	DeviceName   []string `json:"-"`
+}
+
 // StatsContainer abstracts methods to gather and aggregate utilization data for a container.
 type StatsContainer struct {
 	containerMetadata *ContainerMetadata
@@ -74,6 +82,14 @@ type StatsContainer struct {
 	statsQueue        *Queue
 	resolver          resolver.ContainerMetadataResolver
 	config            *config.Config
+}
+
+type StatsTask struct {
+	statsQueue   *Queue
+	taskMetadata *TaskMetadata
+	ctx          context.Context
+	cancel       context.CancelFunc
+	resolver     resolver.ContainerMetadataResolver
 }
 
 // taskDefinition encapsulates family and version strings for a task definition

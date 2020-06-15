@@ -69,6 +69,10 @@ type CNI interface {
 	AddNetworkList(ctx context.Context, net *NetworkConfigList, rt *RuntimeConf) (types.Result, error)
 	CheckNetworkList(ctx context.Context, net *NetworkConfigList, rt *RuntimeConf) error
 	DelNetworkList(ctx context.Context, net *NetworkConfigList, rt *RuntimeConf) error
+<<<<<<< HEAD
+=======
+	GetNetworkListCachedResult(net *NetworkConfigList, rt *RuntimeConf) (types.Result, error)
+>>>>>>> Add AWSVPC metrics
 
 	AddNetwork(ctx context.Context, net *NetworkConfig, rt *RuntimeConf) (types.Result, error)
 	CheckNetwork(ctx context.Context, net *NetworkConfig, rt *RuntimeConf) error
