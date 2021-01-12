@@ -24,8 +24,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+/*
+These tests required manually setting up a podman socket and specify it in "TEST_PODMAN_SOCKET" env. Example:
+
+TEST_PODMAN_SOCKET="unix:/run/user/1000/podman/podman.sock" go test -v -tags integration,podman -count 1 ./agent/dockerclient/dockerapi/podman
+
+*/
+
 func newTestClient(t *testing.T, ctx context.Context) {
 	socket := os.Getenv("TEST_PODMAN_SOCKET")
+	t.Logf("Using socket: %s", socket)
 	_, err := bindings.NewConnection(ctx, socket)
 	require.NoError(t, err)
 }
