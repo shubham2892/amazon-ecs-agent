@@ -17,13 +17,7 @@ import (
 	"context"
 	"fmt"
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
-	"github.com/aws/amazon-ecs-agent/agent/async"
-	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerauth"
-	"github.com/aws/amazon-ecs-agent/agent/dockerclient/sdkclient"
-	"github.com/aws/amazon-ecs-agent/agent/dockerclient/sdkclientfactory"
-	"github.com/aws/amazon-ecs-agent/agent/ecr"
 	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
-	"github.com/aws/amazon-ecs-agent/agent/utils/ttime"
 	"github.com/cihub/seelog"
 	"github.com/containers/libpod/v2/pkg/bindings/containers"
 	"github.com/containers/libpod/v2/pkg/bindings/images"
@@ -34,7 +28,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
@@ -56,21 +49,9 @@ type inactivityTimeoutHandlerFunc func(reader io.ReadCloser, timeout time.Durati
 
 // podmanClient implements the DockerClient interface
 type podmanClient struct {
-	sdkClientFactory         sdkclientfactory.Factory
-	version                  dockerclient.DockerVersion
-	ecrClientFactory         ecr.ECRFactory
-	auth                     dockerauth.DockerAuthProvider
-	ecrTokenCache            async.Cache
-	config                   *config.Config
-	context                  context.Context
-	imagePullBackoff         retry.Backoff
-	inactivityTimeoutHandler inactivityTimeoutHandlerFunc
-
-	_time     ttime.Time
-	_timeOnce sync.Once
-
-	daemonVersionUnsafe string
-	lock                sync.Mutex
+	ctx              context.Context
+	version          dockerclient.DockerVersion
+	imagePullBackoff retry.Backoff
 }
 
 type ImagePullResponsePodman struct {
@@ -88,16 +69,15 @@ type ImagePullResponsePodman struct {
 func NewPodmanDockerClient(cfg *config.Config, ctx context.Context) (DockerClient, error) {
 	// Get Podman socket location
 	sock_dir := os.Getenv("XDG_RUNTIME_DIR")
-	socket := "unix:" + sock_dir + "/podman/podman.sock"
+	socket := "unix:" + sock_dir
 
 	// Connect to Podman socket
 	connText, err := bindings.NewConnection(context.Background(), socket)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return nil, err
 	}
 
-	return &podmanClient{connectionContext: connText}, errors.New("not implemented")
+	return &podmanClient{ctx: connText}, nil
 }
 
 func (pm *podmanClient) SupportedVersions() []dockerclient.DockerVersion {
@@ -112,23 +92,22 @@ func (pm *podmanClient) KnownVersions() []dockerclient.DockerVersion {
 	}
 }
 
-// TODO: implementation.
 func (pm *podmanClient) WithVersion(dockerclient.DockerVersion) DockerClient {
-	if pm.connectionContext != nil {
+	if pm.ctx != nil {
 		return pm
 	}
-	return &podmanClient{}
+	sock_dir := os.Getenv("XDG_RUNTIME_DIR")
+	socket := "unix:" + sock_dir
+
+	// Connect to Podman socket
+	connText, _ := bindings.NewConnection(context.Background(), socket)
+
+	return &podmanClient{ctx: connText}
+
 }
 
 func (pm *podmanClient) ContainerEvents(context.Context) (<-chan DockerContainerChangeEvent, error) {
 	return nil, errors.New("not implemented")
-}
-
-func (pm *podmanClient) sdkDockerClient() (sdkclient.Client, error) {
-	if pm.version == "" {
-		return pm.sdkClientFactory.GetDefaultClient()
-	}
-	return pm.sdkClientFactory.GetClient(pm.version)
 }
 
 func (pm *podmanClient) pullImage(ctx context.Context, image string,
@@ -230,7 +209,7 @@ func (pm *podmanClient) CreateContainer(ctx context.Context,
 func (pm *podmanClient) startContainer(ctx context.Context, id string) DockerContainerMetadata {
 	err := containers.Start(ctx, id, nil)
 	if err != nil {
-		return DockerContainerMetadata{Error: CannotGetDockerClientError{Version: dg.version, Err: err}}
+		return DockerContainerMetadata{Error: CannotGetDockerClientError{Version: pm.version, Err: err}}
 	}
 	metadata := pm.containerMetadata(ctx, id)
 
@@ -492,14 +471,41 @@ func (pm *podmanClient) InspectContainer(ctx context.Context, dockerID string, t
 	}
 }
 
-// TODO: implementation.
-func (pm *podmanClient) ListContainers(context.Context, bool, time.Duration) ListContainersResponse {
-	return ListContainersResponse{}
+func (pm *podmanClient) ListContainers(ctx context.Context, all bool, timeout time.Duration) ListContainersResponse {
+	var latestContainers = 1
+	containerLatestList, err := containers.List(ctx, nil, nil, &latestContainers, nil, nil, nil)
+	if err != nil {
+		return ListContainersResponse{Error: &CannotListContainersError{err}}
+	}
+
+	var listContainerResponse ListContainersResponse
+	var dockerIds []string
+
+	for _, containerList := range containerLatestList {
+		dockerIds = append(dockerIds, containerList.ID)
+	}
+	listContainerResponse.DockerIDs = dockerIds
+	return listContainerResponse
 }
 
-// TODO: implementation.
-func (pm *podmanClient) ListImages(context.Context, time.Duration) ListImagesResponse {
-	return ListImagesResponse{}
+func (pm *podmanClient) ListImages(ctx context.Context, timeout time.Duration) ListImagesResponse {
+	imageSummary, err := images.List(ctx, nil, nil)
+	if err != nil {
+		return ListImagesResponse{Error: &CannotListImagesError{err}}
+	}
+
+	var listImageResponses ListImagesResponse
+	var imageIds []string
+	var repoTags []string
+
+	for _, imageResponse := range imageSummary {
+		imageIds = append(imageIds, imageResponse.ID)
+		repoTags = append(repoTags, imageResponse.RepoTags[0])
+	}
+	listImageResponses.RepoTags = repoTags
+	listImageResponses.ImageIDs = imageIds
+
+	return listImageResponses
 }
 
 // TODO: implementation.
