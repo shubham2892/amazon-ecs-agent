@@ -24,7 +24,6 @@ import (
 
 	acshandler "github.com/aws/amazon-ecs-agent/agent/acs/handler"
 	"github.com/aws/amazon-ecs-agent/agent/api"
-	"github.com/aws/amazon-ecs-agent/agent/api/ecsclient"
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
 	"github.com/aws/amazon-ecs-agent/agent/app/factory"
 	"github.com/aws/amazon-ecs-agent/agent/config"
@@ -218,15 +217,9 @@ func (agent *ecsAgent) setTerminationHandler(handler sighandlers.TerminationHand
 // start starts the ECS Agent
 func (agent *ecsAgent) start() int {
 	sighandlers.StartDebugHandler()
-
-	containerChangeEventStream := eventstream.NewEventStream(containerChangeEventStreamName, agent.ctx)
 	credentialsManager := credentials.NewManager()
-	state := dockerstate.NewTaskEngineState()
-	imageManager := engine.NewImageManager(agent.cfg, agent.dockerClient, state)
-	client := ecsclient.NewECSClient(agent.credentialProvider, agent.cfg, agent.ec2MetadataClient)
-
 	agent.initializeResourceFields(credentialsManager)
-	return agent.doStart(containerChangeEventStream, credentialsManager, state, imageManager, client)
+	return exitcodes.ExitTerminal
 }
 
 // doStart is the worker invoked by start for starting the ECS Agent. This involves
