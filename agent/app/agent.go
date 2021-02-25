@@ -45,6 +45,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/eventhandler"
 	"github.com/aws/amazon-ecs-agent/agent/eventstream"
 	"github.com/aws/amazon-ecs-agent/agent/handlers"
+	"github.com/aws/amazon-ecs-agent/agent/healthcheck"
 	"github.com/aws/amazon-ecs-agent/agent/sighandlers"
 	"github.com/aws/amazon-ecs-agent/agent/sighandlers/exitcodes"
 	"github.com/aws/amazon-ecs-agent/agent/statemanager"
@@ -633,8 +634,29 @@ func (agent *ecsAgent) startAsyncRoutines(
 		go handlers.ServeTaskHTTPEndpoint(agent.ctx, credentialsManager, state, client, agent.containerInstanceARN, agent.cfg, statsEngine, agent.availabilityZone)
 	}
 
+	// setup engine heartbeat
+	//engineHeartbeat := make(chan interface{})
+	//engineHeartbeatInterval := 1*time.Minute
+	//go eventhandler.HandleEngineEvents(agent.ctx, taskEngine, client, taskHandler, attachmentEventHandler, engineHeartbeatInterval, engineHeartbeat)
+	//go func() {
+	//		for {
+	//			select {
+	//			case _, ok := <-engineHeartbeat:
+	//				if ok == false {
+	//					continue
+	//				}
+	//				seelog.Infof("PULSE")
+	//			}
+	//		}
+	//	}()
+
+	appHealthcheck := healthcheck.NewHealthcheck(agent.ctx)
+	engineHeartbeat := appHealthcheck.NewNamedHeartbeat("engineHeartbeat")
+
 	// Start sending events to the backend
-	go eventhandler.HandleEngineEvents(agent.ctx, taskEngine, client, taskHandler, attachmentEventHandler)
+	go eventhandler.HandleEngineEvents(agent.ctx, taskEngine, client, taskHandler, attachmentEventHandler, healthcheck.HeartbeatWriteInterval, engineHeartbeat.HeartbeatChannel)
+
+	go appHealthcheck.StartHealthcheckProcess(agent.ctx)
 
 	telemetrySessionParams := tcshandler.TelemetrySessionParams{
 		Ctx:                           agent.ctx,

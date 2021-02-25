@@ -16,6 +16,7 @@ package eventhandler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	"github.com/aws/amazon-ecs-agent/agent/engine"
@@ -30,7 +31,19 @@ func HandleEngineEvents(
 	taskEngine engine.TaskEngine,
 	client api.ECSClient,
 	taskHandler *TaskHandler,
-	attachmentEventHandler *AttachmentEventHandler) {
+	attachmentEventHandler *AttachmentEventHandler,
+	pulseInterval time.Duration,
+	heartbeat chan interface{}) {
+	defer close(heartbeat)
+	pulse := time.Tick(pulseInterval)
+
+	sendPulse := func() {
+		select {
+		case heartbeat <- struct{}{}:
+		default:
+		}
+	}
+
 	for {
 		stateChangeEvents := taskEngine.StateChangeEvents()
 
@@ -39,6 +52,9 @@ func HandleEngineEvents(
 			case <-ctx.Done():
 				seelog.Infof("Exiting the engine event handler.")
 				return
+			case <-pulse:
+				sendPulse()
+				seelog.Infof("PULSE sent")
 			case event, ok := <-stateChangeEvents:
 				if !ok {
 					stateChangeEvents = nil

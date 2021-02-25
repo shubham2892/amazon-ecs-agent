@@ -31,6 +31,22 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/wsclient"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/cihub/seelog"
+
+"github.com/aws/amazon-ecs-agent/agent/api"
+	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
+	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
+	"github.com/aws/amazon-ecs-agent/agent/containermetadata"
+	agent_creds "github.com/aws/amazon-ecs-agent/agent/credentials"
+	"github.com/aws/amazon-ecs-agent/agent/data"
+	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi"
+	"github.com/aws/amazon-ecs-agent/agent/dockerclient/sdkclientfactory"
+	"github.com/aws/amazon-ecs-agent/agent/ec2"
+	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
+	"github.com/aws/amazon-ecs-agent/agent/engine/execcmd"
+	"github.com/aws/aws-sdk-go/aws"
+
+	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
+	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 )
 
 const (
@@ -102,7 +118,7 @@ func startTelemetrySession(params *TelemetrySessionParams, statsEngine stats.Eng
 	url := formatURL(tcsEndpoint, params.Cfg.Cluster, params.ContainerInstanceArn, params.TaskEngine)
 	return startSession(params.Ctx, url, params.Cfg, params.CredentialProvider, statsEngine,
 		defaultHeartbeatTimeout, defaultHeartbeatJitter, config.DefaultContainerMetricsPublishInterval,
-		params.DeregisterInstanceEventStream)
+		params.DeregisterInstanceEventStream, params.TaskEngine)
 }
 
 func startSession(
@@ -113,7 +129,8 @@ func startSession(
 	statsEngine stats.Engine,
 	heartbeatTimeout, heartbeatJitter,
 	publishMetricsInterval time.Duration,
-	deregisterInstanceEventStream *eventstream.EventStream) error {
+	deregisterInstanceEventStream *eventstream.EventStream,
+	taskEngine engine.TaskEngine) error {
 	client := tcsclient.New(url, cfg, credentialProvider, statsEngine,
 		publishMetricsInterval, wsRWTimeout, cfg.DisableMetrics.Enabled())
 	defer client.Close()
@@ -136,7 +153,7 @@ func startSession(
 	timer := time.NewTimer(retry.AddJitter(heartbeatTimeout, heartbeatJitter))
 	defer timer.Stop()
 	client.AddRequestHandler(heartbeatHandler(timer))
-	client.AddRequestHandler(ackPublishMetricHandler(timer))
+	client.AddRequestHandler(ackPublishMetricHandler(timer, taskEngine))
 	client.AddRequestHandler(ackPublishHealthMetricHandler(timer))
 	client.SetAnyRequestHandler(anyMessageHandler(client))
 	serveC := make(chan error)
@@ -166,9 +183,96 @@ func heartbeatHandler(timer *time.Timer) func(*ecstcs.HeartbeatMessage) {
 
 // ackPublishMetricHandler consumes the ack message from the backend. THe backend sends
 // the ack each time it processes a metric message.
-func ackPublishMetricHandler(timer *time.Timer) func(*ecstcs.AckPublishMetric) {
+func ackPublishMetricHandler(timer *time.Timer, taskEngine engine.TaskEngine) func(*ecstcs.AckPublishMetric) {
 	return func(*ecstcs.AckPublishMetric) {
 		seelog.Debug("Received AckPublishMetric from tcs")
+		dockerTaskEngine := taskEngine.TaskEngineClient()
+		listContainersResponse := dockerTaskEngine.ListContainers(context.TODO(), false, time.Second*2)
+		seelog.Debugf("list containers response: %v", listContainersResponse)
+
+		dockerEndpoint := "unix:///var/run/docker.sock"
+
+		cfg, _ := config.NewConfig(ec2.NewBlackholeEC2MetadataClient())
+		cfg.TaskCPUMemLimit.Value = config.ExplicitlyDisabled
+		cfg.ImagePullBehavior = config.ImagePullPreferCachedBehavior
+
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+		sdkClientFactory := sdkclientfactory.NewFactory(ctx, dockerEndpoint)
+		dockerClient, err := dockerapi.NewDockerGoClient(sdkClientFactory, cfg, context.Background())
+		if err != nil {
+			seelog.Errorf("Error creating Docker client: %v", err)
+		}
+		credentialsManager := agent_creds.NewManager()
+		state := dockerstate.NewTaskEngineState()
+		imageManager := engine.NewImageManager(cfg, dockerClient, state)
+		imageManager.SetDataClient(data.NewNoopClient())
+		metadataManager := containermetadata.NewManager(dockerClient, cfg)
+
+		taskEngine := engine.NewDockerTaskEngine(cfg, dockerClient, credentialsManager,
+			eventstream.NewEventStream("ENGINEINTEGTEST", context.Background()), imageManager, state, metadataManager,
+			nil, execcmd.NewManager())
+		taskEngine.MustInit(context.TODO())
+
+		testRegistryHost := "127.0.0.1:5000"
+		testBusyboxImage := testRegistryHost + "/busybox:latest"
+		testContainer := &apicontainer.Container{
+			Name:                "test",
+			Image:               testBusyboxImage,
+			Command:             []string{},
+			Essential:           true,
+			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+			CPU:                 1024,
+			Memory:              128,
+		}
+		testTask := &apitask.Task{
+			Arn:                 "ARN",
+			Family:              "family",
+			Version:             "1",
+			DesiredStatusUnsafe: apitaskstatus.TaskRunning,
+			Containers:          []*apicontainer.Container{testContainer},
+		}
+		testTask.Containers[0].Image = testBusyboxImage
+		testTask.Containers[0].Name = "test-health-check"
+		testTask.Containers[0].HealthCheckType = "docker"
+		testTask.Containers[0].Command = []string{"sh", "-c", "echo test"}
+
+		alwaysHealthyHealthCheckConfig := `{
+			"HealthCheck":{
+				"Test":["CMD-SHELL", "echo hello"],
+				"Interval":100000000,
+				"Timeout":2000000000,
+				"StartPeriod":100000000,
+				"Retries":3}
+		}`
+
+		testTask.Containers[0].DockerConfig = apicontainer.DockerConfig{
+			Config: aws.String(alwaysHealthyHealthCheckConfig),
+		}
+
+		go taskEngine.AddTask(testTask)
+
+		stateChangeEvents := taskEngine.StateChangeEvents()
+		event := <-stateChangeEvents
+		if event.(api.ContainerStateChange).Status != apicontainerstatus.ContainerRunning {
+			seelog.Errorf("Expected container status %v to be RUNNING", event)
+		}
+
+		event = <-stateChangeEvents
+		if event.(api.TaskStateChange).Status != apitaskstatus.TaskRunning {
+			seelog.Errorf("Expected task status %v to be RUNNING", event)
+		}
+
+		event = <-stateChangeEvents
+		if event.(api.ContainerStateChange).Status != apicontainerstatus.ContainerStopped {
+			seelog.Errorf("Expected container status %v to be STOPPED", event)
+		}
+
+		event = <-stateChangeEvents
+		if event.(api.TaskStateChange).Status != apitaskstatus.TaskStopped {
+			seelog.Errorf("Expected task status %v to be STOPPED", event)
+		}
+
 		timer.Reset(retry.AddJitter(defaultHeartbeatTimeout, defaultHeartbeatJitter))
 	}
 }
