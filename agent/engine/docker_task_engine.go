@@ -1295,7 +1295,17 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 	}
 
 	startContainerBegin := time.Now()
-	dockerContainerMD := client.StartContainer(engine.ctx, dockerID, engine.cfg.ContainerStartTimeout)
+	// TODO stub it out here
+
+	//dockerContainerMD := client.StartContainer(engine.ctx, dockerID, engine.cfg.ContainerStartTimeout)
+	//dockerContainerMD = &containermetadata.DockerContainerMetadata{
+	//
+	//}
+	dockerContainerMD := dockerapi.DockerContainerMetadata{
+		DockerID: "123444",
+		StartedAt: time.Now(),
+	}
+
 	if dockerContainerMD.Error != nil {
 		return dockerContainerMD
 	}

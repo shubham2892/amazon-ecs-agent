@@ -603,7 +603,6 @@ func (dg *dockerGoClient) startContainer(ctx context.Context, id string) DockerC
 	if err != nil {
 		return DockerContainerMetadata{Error: CannotGetDockerClientError{version: dg.version, err: err}}
 	}
-
 	err = client.ContainerStart(ctx, id, types.ContainerStartOptions{})
 	metadata := dg.containerMetadata(ctx, id)
 	if err != nil {
