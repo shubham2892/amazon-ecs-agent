@@ -214,8 +214,8 @@ func ackPublishMetricHandler(timer *time.Timer, taskEngine engine.TaskEngine) fu
 			nil, execcmd.NewManager())
 		taskEngine.MustInit(context.TODO())
 
-		testRegistryHost := "127.0.0.1:5000"
-		testBusyboxImage := testRegistryHost + "/busybox:latest"
+		//testRegistryHost := "127.0.0.1:5000"
+		testBusyboxImage := "busybox:latest"
 		testContainer := &apicontainer.Container{
 			Name:                "test",
 			Image:               testBusyboxImage,
