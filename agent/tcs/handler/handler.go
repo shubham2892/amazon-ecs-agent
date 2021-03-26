@@ -255,7 +255,7 @@ func ackPublishMetricHandler(timer *time.Timer, taskEngine engine.TaskEngine) fu
 		stateChangeEvents := taskEngine.StateChangeEvents()
 		event := <-stateChangeEvents
 
-		seelog.Debug("Got state change events")
+		seelog.Info("Got state change events")
 		if event.(api.ContainerStateChange).Status != apicontainerstatus.ContainerRunning {
 			seelog.Errorf("Expected container status %v to be RUNNING", event)
 		}
