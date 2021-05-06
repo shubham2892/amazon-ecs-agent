@@ -316,6 +316,13 @@ func (acsSession *session) startACSSession(client wsclient.ClientServer) error {
 	client.AddRequestHandler(taskManifestHandler.handlerFuncTaskManifestMessage())
 	client.AddRequestHandler(taskManifestHandler.handlerFuncTaskStopVerificationMessage())
 
+	// Add request handler for docker ping
+	dockerPingHandler := newDockerPingHandler(acsSession.ctx, cfg.Cluster, acsSession.containerInstanceARN,
+		client, acsSession.dataClient, acsSession.taskEngine, acsSession.latestSeqNumTaskManifest)
+	//defer dockerPingHandler.clearAcks()
+	dockerPingHandler.start()
+	//defer  dockerPingHandler.stop()
+
 	// Add request handler for handling payload messages from ACS
 	payloadHandler := newPayloadRequestHandler(
 		acsSession.ctx,
