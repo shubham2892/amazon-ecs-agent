@@ -15,10 +15,12 @@ package handler
 import (
 	"context"
 	"github.com/aws/amazon-ecs-agent/agent/data"
+	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi"
 	"github.com/aws/amazon-ecs-agent/agent/engine"
 	"github.com/aws/amazon-ecs-agent/agent/wsclient"
 	"github.com/cihub/seelog"
 	"sync"
+	"time"
 )
 
 // taskManifestHandler handles task manifest message for the ACS client
@@ -26,6 +28,7 @@ type dockerPingHandler struct {
 	ctx                         context.Context
 	taskEngine                  engine.TaskEngine
 	cancel                      context.CancelFunc
+	dockerClient                dockerapi.DockerClient
 	dataClient                  data.Client
 	cluster                     string
 	containerInstanceArn        string
@@ -37,7 +40,8 @@ type dockerPingHandler struct {
 
 func newDockerPingHandler(ctx context.Context,
 	cluster string, containerInstanceArn string, acsClient wsclient.ClientServer,
-	dataClient data.Client, taskEngine engine.TaskEngine, latestSeqNumberTaskManifest *int64) dockerPingHandler {
+	dataClient data.Client, taskEngine engine.TaskEngine, dockerClient dockerapi.DockerClient,
+	latestSeqNumberTaskManifest *int64) dockerPingHandler {
 
 	// Create a cancelable context from the parent context
 	derivedContext, cancel := context.WithCancel(ctx)
@@ -49,6 +53,7 @@ func newDockerPingHandler(ctx context.Context,
 		taskEngine:                  taskEngine,
 		dataClient:                  dataClient,
 		latestSeqNumberTaskManifest: latestSeqNumberTaskManifest,
+		dockerClient:                dockerClient,
 	}
 }
 
@@ -63,16 +68,25 @@ func (dockerPingHandler *dockerPingHandler) start() {
 
 }
 
+//func (dockerPingHandler *dockerPingHandler) dockerPingMessage() {
+//	for {
+//		select {
+//		case <-dockerPingHandler.ctx.Done():
+//			return
+//		case message := <-taskManifestHandler.messageBufferTaskManifest:
+//			if err := taskManifestHandler.handleTaskManifestSingleMessage(message); err != nil {
+//				seelog.Warnf("Unable to handle taskManifest message [%s]: %v", message.String(), err)
+//			}
+//		}
+//	}
+//}
 
-func (dockerPingHandler *dockerPingHandler) dockerPingMessage() {
-	for {
-		select {
-		case <-dockerPingHandler.ctx.Done():
-			return
-		case message := <-taskManifestHandler.messageBufferTaskManifest:
-			if err := taskManifestHandler.handleTaskManifestSingleMessage(message); err != nil {
-				seelog.Warnf("Unable to handle taskManifest message [%s]: %v", message.String(), err)
-			}
-		}
+func (dockerPingHandler *dockerPingHandler) handleSingleMessage() bool {
+	seelog.Infof("Received heartbeat from ACS")
+	_, err := dockerPingHandler.dockerClient.PingDocker(context.TODO(), time.Second*2)
+	if err!= nil {
+		seelog.Infof("Docker Ping failed with error: %v", err)
+		return false
 	}
+	return true
 }

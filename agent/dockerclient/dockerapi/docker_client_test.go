@@ -1008,6 +1008,34 @@ func TestDockerVersion(t *testing.T) {
 	assert.Equal(t, "1.6.0", str, "Got unexpected version string: "+str)
 }
 
+func TestDockerPing(t *testing.T) {
+	mockDockerSDK, client, _, _, _, done := dockerClientSetup(t)
+	defer done()
+
+	mockDockerSDK.EXPECT().Ping(gomock.Any()).Return(types.Ping{APIVersion: "test_docker_api"}, nil)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	info, err := client.PingDocker(ctx, dockerclient.InfoTimeout)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "test_docker_api", info.APIVersion)
+}
+
+func TestDockerPingError(t *testing.T) {
+	mockDockerSDK, client, _, _, _, done := dockerClientSetup(t)
+	defer done()
+
+	mockDockerSDK.EXPECT().Ping(gomock.Any()).Return(types.Ping{}, errors.New("test error"))
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	info, err := client.PingDocker(ctx, dockerclient.InfoTimeout)
+
+	assert.Error(t, err)
+	assert.Equal(t, "", info.APIVersion)
+}
+
 func TestDockerInfo(t *testing.T) {
 	mockDockerSDK, client, _, _, _, done := dockerClientSetup(t)
 	defer done()
