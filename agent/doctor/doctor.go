@@ -15,6 +15,7 @@ package doctor
 
 import (
 	"github.com/cihub/seelog"
+	"time"
 )
 
 type Doctor struct {
@@ -39,3 +40,12 @@ func (doc *Doctor) RunHealthchecks() bool {
 	}
 	return true
 }
+
+type Healthcheck interface {
+	GetLastHealthCheckStatus() HealthcheckStatus
+	GetLastHealthCheckTime() time.Time
+	GetHealthCheckStatus() HealthcheckStatus
+	GetHealthCheckTime() time.Time
+	RunCheck() HealthcheckStatus
+}
+

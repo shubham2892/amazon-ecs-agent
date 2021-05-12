@@ -208,8 +208,6 @@ type DockerClient interface {
 
 	// Info returns the information of the Docker server.
 	Info(context.Context, time.Duration) (types.Info, error)
-
-	PingDocker(context.Context, time.Duration) (types.Ping, error)
 }
 
 // DockerGoClient wraps the underlying go-dockerclient and docker/docker library.
@@ -561,21 +559,6 @@ func (dg *dockerGoClient) CreateContainer(ctx context.Context,
 		// back an error.
 		return DockerContainerMetadata{Error: &CannotCreateContainerError{err}}
 	}
-}
-
-func (dg *dockerGoClient) PingDocker(ctx context.Context, timeout time.Duration) (types.Ping, error) {
-	derivedCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	client, err := dg.sdkDockerClient()
-
-	if err != nil {
-		return types.Ping{}, err
-	}
-
-	pingOutput, err := client.Ping(derivedCtx)
-
-	return pingOutput, err
 }
 
 func (dg *dockerGoClient) createContainer(ctx context.Context, config *dockercontainer.Config,

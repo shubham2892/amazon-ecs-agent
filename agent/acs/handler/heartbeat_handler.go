@@ -81,7 +81,7 @@ func (heartbeatHandler *heartbeatHandler) handleHeartbeatMessage() {
 func (heartbeatHandler *heartbeatHandler) handleSingleHeartbeatMessage(message *ecsacs.HeartbeatMessage) error {
 	// Agent will run healthchecks triggered by ACS heartbeat
 	// healthcheck results will be sent on to TACS
-	dockerHealthcheck := doctor.NewDockerRuntimeHealthcheck(heartbeatHandler.taskEngine.TaskEngineClient())
+	dockerHealthcheck := doctor.NewDockerRuntimeHealthCheck(heartbeatHandler.taskEngine.TaskEngineClient())
 	heartbeatHandler.doctor.AddHealthcheck(&dockerHealthcheck)
 
 	go func() {
