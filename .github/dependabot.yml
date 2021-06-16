@@ -1,8 +1,8 @@
 version: 2
 updates:
 - package-ecosystem: gomod
-  directory: "/"
+  directory: "agent/"
   schedule:
     interval: daily
-    time: "11:10"
+    time: "11:59"
   open-pull-requests-limit: 1
