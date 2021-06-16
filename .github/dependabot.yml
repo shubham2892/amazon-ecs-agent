@@ -1,7 +1,7 @@
 version: 2
 updates:
 - package-ecosystem: gomod
-  directory: "../agent/"
+  directory: "/agent"
   schedule:
     interval: daily
     time: "01:02"
