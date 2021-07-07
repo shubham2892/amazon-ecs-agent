@@ -17,6 +17,7 @@ set -e
 
 DRYRUN=true
 
+
 AWS_PROFILE=""
 AWS_REGION="us-east-1"
 AMI_ID="ami-053b2a8c2f3e87928" #amzn2-ami-hvm-2.0.20181020.0-aarch64-gp2
